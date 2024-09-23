@@ -1,0 +1,8 @@
+pandas
+matplotlib
+PyQt5
+pyqtgraph
+mplcursors
+openpyxl
+PyQtWebEngine
+geopy
