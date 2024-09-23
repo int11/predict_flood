@@ -1,8 +1,11 @@
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import pickle
-import os
-import sys
 from src.dataset.sensor import Sensor
 from dataset.original.utils import path2df
 

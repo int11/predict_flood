@@ -1,7 +1,7 @@
-import sys
-import pickle
-import glob
 import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
 import io
 
 from PyQt5.QtWidgets import *
@@ -10,7 +10,6 @@ from src import Sensor
 from PyQt5.QtCore import QDir, QDirIterator, QFileInfo
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from tools.utils import *
-from geopy.geocoders import GoogleV3
 import folium
 
 class topWidget(QWidget):
