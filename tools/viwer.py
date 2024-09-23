@@ -251,11 +251,11 @@ class MainWindow(QMainWindow):
             height=self.top.height_input.get(), 
             s=self.top.s_input.get(),
             graph_type=self.top.RadiographType.get())
+        canvas.emitDeletionRequest.connect(self.removeCanvas)  # 삭제 요청 신호를 처리하는 메서드에 연결
         return canvas
 
     def addButtonClicked(self, item):
         canvas = self.make_canvas(item)
-        canvas.emitDeletionRequest.connect(self.removeCanvas)  # 삭제 요청 신호를 처리하는 메서드에 연결
         self.scrollLayout.addWidget(canvas)
         self.updateScrollWidgetSize()
 
