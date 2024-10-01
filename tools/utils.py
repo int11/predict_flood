@@ -15,9 +15,9 @@ def path2df(file_paths, encoding='utf-8'):
     return dataframes
 
 
-def getAllSensors(dir):
-    leaf_dirs = [dirpath for dirpath, dirnames, _ in os.walk('datasets/sensor') if not dirnames]
-    sensors = [Sensor.load(sensor, only_meta=True) for sensor in leaf_dirs]
+def getAllSensors(dir, only_meta=True):
+    leaf_dirs = [dirpath for dirpath, dirnames, _ in os.walk(dir) if not dirnames]
+    sensors = [Sensor.load(sensor, only_meta=only_meta) for sensor in leaf_dirs]
     return sensors
 
 

@@ -3,6 +3,16 @@ import pandas as pd
 import pickle
 
 class Sensor:
+    """
+    ex)
+    meta = {
+        'location':'서울특별시 서초구 서초동 1416번지 서초 IC',
+        'category':'강수량계',
+        'id':401,
+        'WGS84': {'latitude': 37.48462, 'longitude': 127.02601},
+        'columns': ['time', '기온(°C)', '1분 강수량(mm)', '강수유무(유무)', '풍향(deg)', '풍속(m/s)', '현지기압(hPa)', '해면기압(hPa)', '습도(%)', '일사(MJ/m^2)', '일조(Sec)']
+    }
+    """
     def __init__(self, meta: dict[str, str], value: pd.DataFrame=None, path=None):
         self.meta = meta
         if value is not None and value.empty == False:

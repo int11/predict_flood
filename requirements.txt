@@ -6,3 +6,4 @@ openpyxl
 PyQtWebEngine
 geopy
 folium
+torch

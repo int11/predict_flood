@@ -111,10 +111,23 @@ class PlotCanvas(QWidget):
         # 수정된 최소 및 최대 값으로 그래프의 리미트 설정
         self.graphWidget.setXRange(minX, maxX, padding=0.02)  # x축 초기 범위 설정, 2%의 패딩 적용
         self.graphWidget.setYRange(minY, maxY, padding=0.02)  # y축 초기 범위 설정, 2%의 패딩 적용
+        
+        self.setLimits(True)
+        self.setShareRange(True)
 
-        self.graphWidget.setLimits(xMin=self.paddedMinX, xMax=self.paddedMaxX, yMin=self.paddedMinY, yMax=self.paddedMaxY)
-        self.graphWidget.sigRangeChanged.connect(self.onRangeChanged)
+    def setLimits(self, state):
+        if state:
+            self.graphWidget.setLimits(xMin=self.paddedMinX, xMax=self.paddedMaxX, yMin=self.paddedMinY, yMax=self.paddedMaxY)
+        else:
+            self.graphWidget.setLimits(xMin=None, xMax=None, yMin=None, yMax=None)
 
+    def setShareRange(self, state):
+        if state:
+            self.graphWidget.sigRangeChanged.connect(self.onRangeChanged)
+        else:
+            self.graphWidget.sigRangeChanged.disconnect(self.onRangeChanged)
+            self.graphWidget.setXLink(None)
+            self.graphWidget.setYLink(None)
 
     def mouseMoved(self, evt):
         pos = evt[0]  # 마우스 위치 가져오기

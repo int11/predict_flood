@@ -12,6 +12,7 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from tools.utils import *
 import folium
 
+
 class topWidget(QWidget):
     def __init__(self, parent=None):
         super(topWidget, self).__init__(parent)
@@ -19,16 +20,27 @@ class topWidget(QWidget):
         self.setLayout(self.layout)
 
         self.width_input = Qinput("Width:", default=4000, parent=self)
-        self.height_input = Qinput("Height:", default=500, parent=self)
-        self.s_input = Qinput("S:", default=3, parent=self)
-        self.RadiographType = RadioButtonGroup()
         self.layout.addWidget(self.width_input)
+        self.height_input = Qinput("Height:", default=500, parent=self)
         self.layout.addWidget(self.height_input)
+        self.s_input = Qinput("S:", default=3, parent=self)
         self.layout.addWidget(self.s_input)
+        self.RadiographType = RadioButtonGroup()
         self.layout.addWidget(self.RadiographType)
-        self.layout.addStretch(1)
+        
 
+        self.onLimits = QCheckBox('ON Limits')
+        self.onLimits.setChecked(True)
+        self.layout.addWidget(self.onLimits)
+        self.onShareRange = QCheckBox('ON Share range')
+        self.onShareRange.setChecked(True)
+        self.layout.addWidget(self.onShareRange)
+        
+        
+        self.layout.addStretch(1)
         self.layout.setContentsMargins(0, 0, 0, 0)
+
+
 
 class explorerWidget(QWidget):
     addButtonClicked = pyqtSignal(QTreeWidgetItem)  # addButton 클릭 시그널
@@ -194,6 +206,8 @@ class MainWindow(QMainWindow):
         
         # top 부분
         self.top = topWidget()
+        self.top.onLimits.stateChanged.connect(self.update_plot_canvas)
+        self.top.onShareRange.stateChanged.connect(self.update_plot_canvas)
         self.top.setFixedHeight(60)
         layout.addWidget(self.top)
         
@@ -286,6 +300,13 @@ class MainWindow(QMainWindow):
         
         self.scrollWidget.setFixedHeight(total_height)
         self.scrollWidget.setFixedWidth(max_width)
+
+    def update_plot_canvas(self):
+        for plot_canvas in PlotCanvas.PlotCanvas_list:
+            plot_canvas.setLimits(self.top.onLimits.isChecked())
+
+        for plot_canvas in PlotCanvas.PlotCanvas_list:
+            plot_canvas.setShareRange(self.top.onShareRange.isChecked())
 
 
 if __name__ == '__main__':
