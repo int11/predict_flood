@@ -41,6 +41,7 @@ class PlotCanvas(QWidget):
         # CustomDateAxisItem을 사용하여 날짜 축을 생성
         date_axis = CustomDateAxisItem(orientation='bottom')
         self.graphWidget = pg.PlotWidget(axisItems={'bottom': date_axis})
+        vertical_layout.addWidget(self.graphWidget)
         self.graphWidget.setBackground('w')  # 배경색을 흰색으로 설정
 
         # x축과 y축의 글자 색상을 검은색으로 설정
@@ -49,33 +50,20 @@ class PlotCanvas(QWidget):
         yAxis = self.graphWidget.getAxis('left')
         yAxis.setPen(pg.mkPen(color=(0, 0, 0)))
 
-        vertical_layout.addWidget(self.graphWidget)
-
         hue_step = 360 / max(sum(len(df.columns) - 1 for df in dfs), 1)  # 색상 변경 단계 계산
         current_hue = 0  # 시작 색상
-
-        # 최소 및 최대 값 초기화
-        minX, maxX, minY, maxY = sys.maxsize, -sys.maxsize, sys.maxsize, -sys.maxsize
 
         # 범례 추가
         legend = pg.LegendItem(offset=(70, 30))  # 범례 크기 및 위치 조정
         legend.setParentItem(self.graphWidget.graphicsItem())  # 범례를 그래프 위젯에 추가
 
         for df in dfs:
-            
             df.loc[:, 'time'] = pd.to_datetime(df['time'])
             x = df['time'].apply(lambda dt: int(QDateTime(dt).toSecsSinceEpoch())).values
             y_columns = df.drop('time', axis=1)
 
-            # x축 최소 및 최대 값 업데이트
-            minX = min(minX, np.nanmin(x))
-            maxX = max(maxX, np.nanmax(x))
             for col in y_columns:
                 y = y_columns[col].values
-
-                minY = min(minY, np.nanmin(y))
-                maxY = max(maxY, np.nanmax(y))
-
                 color = QColor.fromHsv(int(current_hue), 255, 255)  # HSV에서 RGB 색상으로 변환, current_hue를 정수로 변환
                 color.setAlphaF(0.5)
                 if graph_type == 'Line':
@@ -92,23 +80,18 @@ class PlotCanvas(QWidget):
         self.textItem = pg.TextItem(anchor=(0,1))
         self.graphWidget.addItem(self.textItem)
 
-        # 최소 및 최대 값으로 그래프의 리미트 설정
-        paddingX = (maxX - minX) * 0.02  # x축에 대한 패딩을 전체 범위의 5%로 설정
-        paddingY = (maxY - minY) * 0.02  # y축에 대한 패딩을 전체 범위의 5%로 설정
 
-        # 패딩 적용
-        self.paddedMinX = minX - paddingX
-        self.paddedMaxX = maxX + paddingX
-        self.paddedMinY = minY - paddingY
-        self.paddedMaxY = maxY + paddingY
+        # x time 축 제대로 설정
+        all_x_values = np.concatenate([df['time'].apply(lambda dt: int(QDateTime(dt).toSecsSinceEpoch())).values for df in dfs])
+        padding = 0.02 * (all_x_values.max() - all_x_values.min())
+        self.x_range = [all_x_values.min() - padding, all_x_values.max() + padding]
+        self.y_range = self.graphWidget.getViewBox().state['viewRange'][1] 
+        self.graphWidget.setXRange(self.x_range[0], self.x_range[1], padding=0)
 
-        # 수정된 최소 및 최대 값으로 그래프의 리미트 설정
-        self.graphWidget.setXRange(minX, maxX, padding=0.02)  # x축 초기 범위 설정, 2%의 패딩 적용
-        self.graphWidget.setYRange(minY, maxY, padding=0.02)  # y축 초기 범위 설정, 2%의 패딩 적용
 
     def setLimits(self, state):
         if state:
-            self.graphWidget.setLimits(xMin=self.paddedMinX, xMax=self.paddedMaxX, yMin=self.paddedMinY, yMax=self.paddedMaxY)
+            self.graphWidget.setLimits(xMin=self.x_range[0], xMax=self.x_range[1], yMin=self.y_range[0], yMax=self.y_range[1])
         else:
             self.graphWidget.setLimits(xMin=None, xMax=None, yMin=None, yMax=None)
 
