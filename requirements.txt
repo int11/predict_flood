@@ -7,3 +7,4 @@ PyQtWebEngine
 geopy
 folium
 torch
+scipy

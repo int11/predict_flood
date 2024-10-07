@@ -7,7 +7,7 @@ import io
 from PyQt5.QtWidgets import *
 from src.widgets import *
 from src import Sensor
-from PyQt5.QtCore import QDir, QDirIterator, QFileInfo
+from PyQt5.QtCore import QDir, QDirIterator, QFileInfo, Qt
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from tools.utils import *
 import folium
@@ -19,7 +19,7 @@ class topWidget(QWidget):
         self.layout = QHBoxLayout(self)
         self.setLayout(self.layout)
 
-        self.width_input = Qinput("Width:", default=4000, parent=self)
+        self.width_input = Qinput("Width:", default=1500, parent=self)
         self.layout.addWidget(self.width_input)
         self.height_input = Qinput("Height:", default=500, parent=self)
         self.layout.addWidget(self.height_input)
@@ -255,7 +255,7 @@ class MainWindow(QMainWindow):
             
             checked = item.data(1, Qt.UserRole).get()
             checked.append('time')
-            df = sensor.value[checked]
+            df = sensor._value[checked]
             df.name = sensor.name
             dfs.append(df)
 
@@ -266,12 +266,20 @@ class MainWindow(QMainWindow):
             s=self.top.s_input.get(),
             graph_type=self.top.RadiographType.get())
         canvas.emitDeletionRequest.connect(self.removeCanvas)  # 삭제 요청 신호를 처리하는 메서드에 연결
+        self.scrollLayout.addWidget(canvas)
+        self.update_plot_canvas()
+        self.updateScrollWidgetSize()
         return canvas
 
     def addButtonClicked(self, item):
-        canvas = self.make_canvas(item)
-        self.scrollLayout.addWidget(canvas)
-        self.updateScrollWidgetSize()
+        self.make_canvas(item)
+        
+    def plot_one_graph_clicked(self):
+        self.make_canvas(self.explorerwidget.check_parentItem)
+
+    def plot_each_clicked(self):
+        for i in self.explorerwidget.check_parentItem:
+            self.addButtonClicked(i)
 
     def removeCanvas(self, canvas):
         self.scrollLayout.removeWidget(canvas)
@@ -280,15 +288,6 @@ class MainWindow(QMainWindow):
         PlotCanvas.PlotCanvas_list.remove(canvas)
         self.updateScrollWidgetSize()
         
-    def plot_one_graph_clicked(self):
-        canvas = self.make_canvas(self.explorerwidget.check_parentItem)
-        self.scrollLayout.addWidget(canvas)
-        self.updateScrollWidgetSize()
-
-    def plot_each_clicked(self):
-        for i in self.explorerwidget.check_parentItem:
-            self.addButtonClicked(i)
-
     def updateScrollWidgetSize(self):
         total_height = 0
         max_width = 0

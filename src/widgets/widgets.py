@@ -1,13 +1,7 @@
 import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QIntValidator
-from PyQt5.QtCore import Qt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT
 import pandas as pd
-import pickle
-from src import Sensor
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import pyqtgraph as pg
 from PyQt5.QtGui import QColor
 from pyqtgraph import DateAxisItem
@@ -48,7 +42,6 @@ class PlotCanvas(QWidget):
         date_axis = CustomDateAxisItem(orientation='bottom')
         self.graphWidget = pg.PlotWidget(axisItems={'bottom': date_axis})
         self.graphWidget.setBackground('w')  # 배경색을 흰색으로 설정
-        self.graphWidget.showGrid(x=False, y=False)
 
         # x축과 y축의 글자 색상을 검은색으로 설정
         xAxis = self.graphWidget.getAxis('bottom')
@@ -84,8 +77,9 @@ class PlotCanvas(QWidget):
                 maxY = max(maxY, np.nanmax(y))
 
                 color = QColor.fromHsv(int(current_hue), 255, 255)  # HSV에서 RGB 색상으로 변환, current_hue를 정수로 변환
+                color.setAlphaF(0.5)
                 if graph_type == 'Line':
-                    plot = self.graphWidget.plot(x, y, pen=pg.mkPen(color=color, width=1, alpha=0.1),  name=col)
+                    plot = self.graphWidget.plot(x, y, pen=pg.mkPen(color=color, width=1),  name=col)
                 elif graph_type == 'Scatter':
                     plot = self.graphWidget.plot(x, y, symbol='o', pen=None, symbolBrush=color, symbolSize=s, name=col)
                 current_hue = (current_hue + hue_step) % 360  # 다음 색상으로 업데이트
@@ -111,9 +105,6 @@ class PlotCanvas(QWidget):
         # 수정된 최소 및 최대 값으로 그래프의 리미트 설정
         self.graphWidget.setXRange(minX, maxX, padding=0.02)  # x축 초기 범위 설정, 2%의 패딩 적용
         self.graphWidget.setYRange(minY, maxY, padding=0.02)  # y축 초기 범위 설정, 2%의 패딩 적용
-        
-        self.setLimits(True)
-        self.setShareRange(True)
 
     def setLimits(self, state):
         if state:
@@ -125,7 +116,10 @@ class PlotCanvas(QWidget):
         if state:
             self.graphWidget.sigRangeChanged.connect(self.onRangeChanged)
         else:
-            self.graphWidget.sigRangeChanged.disconnect(self.onRangeChanged)
+            try:
+                self.graphWidget.sigRangeChanged.disconnect(self.onRangeChanged)
+            except TypeError:
+                pass
             self.graphWidget.setXLink(None)
             self.graphWidget.setYLink(None)
 
