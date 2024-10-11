@@ -5,7 +5,7 @@ import pandas as pd
 import pyqtgraph as pg
 from PyQt5.QtGui import QColor
 from pyqtgraph import DateAxisItem
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtCore import pyqtSignal, QObject, Qt
 from PyQt5.QtCore import QDateTime
 import numpy as np
 
@@ -19,8 +19,8 @@ class CustomDateAxisItem(DateAxisItem):
 # PlotCanvas 클래스 내에서 CustomDateAxisItem 사용
 class PlotCanvas(QWidget):
     PlotCanvas_list = []
-    currentLinkedCanvas = None  # 현재 범위가 설정된 PlotCanvas를 추적
     emitDeletionRequest = pyqtSignal(QObject)  # QObject 타입의 신호를 발생시킬 수 있는 pyqtSignal 정의
+    shareRange = False 
 
     def __init__(self, dfs: list[pd.DataFrame], parent=None, width=4000, height=500, s=1, graph_type='Line'):
         PlotCanvas.PlotCanvas_list.append(self)
@@ -89,22 +89,22 @@ class PlotCanvas(QWidget):
         self.graphWidget.setXRange(self.x_range[0], self.x_range[1], padding=0)
 
 
-    def setLimits(self, state):
+    @staticmethod
+    def setLimits(state):
         if state:
-            self.graphWidget.setLimits(xMin=self.x_range[0], xMax=self.x_range[1], yMin=self.y_range[0], yMax=self.y_range[1])
+            for canvas in PlotCanvas.PlotCanvas_list:
+                canvas.graphWidget.setLimits(xMin=canvas.x_range[0], xMax=canvas.x_range[1], yMin=canvas.y_range[0], yMax=canvas.y_range[1])
         else:
-            self.graphWidget.setLimits(xMin=None, xMax=None, yMin=None, yMax=None)
+            for canvas in PlotCanvas.PlotCanvas_list:
+                canvas.graphWidget.setLimits(xMin=None, xMax=None, yMin=None, yMax=None)
 
-    def setShareRange(self, state):
-        if state:
-            self.graphWidget.sigRangeChanged.connect(self.onRangeChanged)
-        else:
-            try:
-                self.graphWidget.sigRangeChanged.disconnect(self.onRangeChanged)
-            except TypeError:
-                pass
-            self.graphWidget.setXLink(None)
-            self.graphWidget.setYLink(None)
+    @staticmethod
+    def setShareRange(state):
+        PlotCanvas.shareRange = state
+        if state == False:
+            for canvas in PlotCanvas.PlotCanvas_list:
+                canvas.graphWidget.setXLink(None)
+                canvas.graphWidget.setYLink(None)
 
     def mouseMoved(self, evt):
         pos = evt[0]  # 마우스 위치 가져오기
@@ -120,16 +120,30 @@ class PlotCanvas(QWidget):
             self.textItem.setHtml(f"<div style='background-color: white;'>x={formattedDateTime}, y={mousePoint.y():.2f}</div>")
             self.textItem.setPos(mousePoint.x(), mousePoint.y())
 
+    def enterEvent(self, event):
+        if PlotCanvas.shareRange:
+            # focus가 되어있고 focus된 그래프의 범위가 변경될때 최초 1회만 모든 그래프 Link
+            def rangeChanged(evt):
+                for canvas in PlotCanvas.PlotCanvas_list:
+                    if canvas != self:
+                        canvas.graphWidget.setXLink(self.graphWidget)
+                        canvas.graphWidget.setYLink(self.graphWidget)
+                # 최초 1회만 실행
+                self.graphWidget.sigRangeChanged.disconnect()
 
-    def onRangeChanged(self):
-        # 현재 PlotCanvas를 모든 다른 PlotCanvas와 연동
-        for canvas in PlotCanvas.PlotCanvas_list:
-            if canvas != self:
-                canvas.graphWidget.setXLink(self.graphWidget)
-                canvas.graphWidget.setYLink(self.graphWidget)
+            self.graphWidget.sigRangeChanged.connect(rangeChanged)
 
-        # 현재 연동된 PlotCanvas를 업데이트
-        PlotCanvas.currentLinkedCanvas = self
+        self.setStyleSheet("background-color: red;")
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        try:
+            self.graphWidget.sigRangeChanged.disconnect()
+        except TypeError:
+            pass  # 연결이 없으면 무시
+        self.setStyleSheet("background-color: none;")
+        super().leaveEvent(event)
+
 
 class RadioButtonGroup(QWidget):
     def __init__(self, group_name="Graph Type", type=['Line', 'Scatter'], default='Line'):

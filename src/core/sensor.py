@@ -27,23 +27,25 @@ class Sensor:
                 raise ValueError('path is None')
             path = self.path
 
-        if self._value is None:
+        if self.value is None:
             raise ValueError('value is None')
 
         os.makedirs(path, exist_ok=True)
         
         with open(os.path.join(path, 'meta.pkl'), 'wb') as meta_file:
-            pickle.dump(self.meta, meta_file)
+            meta = self.meta.copy()
+            meta['columns'] = list(self.value.columns)
+            pickle.dump(meta, meta_file)
 
         self.compress()
 
         if not groupby:
             # value를 저장합니다.
             with open(os.path.join(path, 'value.pkl'), 'wb') as value_file:
-                pickle.dump(self._value, value_file)
+                pickle.dump(self.value, value_file)
         else:
             # value의 time 열을 분석해 달 별로 나눠서 저장합니다.
-            for (year, month), group in self._value.groupby([self._value['time'].dt.year, self._value['time'].dt.month]):
+            for (year, month), group in self.value.groupby([self.value['time'].dt.year, self.value['time'].dt.month]):
                 filename = f'{year}_{month}.pkl'
                 with open(os.path.join(path, filename), 'wb') as file:
                     pickle.dump(group, file)
@@ -51,10 +53,10 @@ class Sensor:
         self.path = path
 
     def compress(self):
-        column_names = self._value.columns
+        column_names = self.value.columns
         # 각 열을 to_numpy()를 사용하여 numpy 배열로 변환하고, 이를 새로운 DataFrame으로 재구성합니다.
-        updated_columns = {col: self._value[col].to_numpy() for col in column_names}
-        self._value = pd.DataFrame(updated_columns)
+        updated_columns = {col: self.value[col].to_numpy() for col in column_names}
+        self.value = pd.DataFrame(updated_columns)
 
     @staticmethod
     def load(path, only_meta=False, groupby=False):
@@ -95,7 +97,7 @@ class Sensor:
                 return self.id < other.id
 
     def concat(self, other):
-        self._value = pd.concat([self._value, other.value])
+        self.value = pd.concat([self.value, other.value])
         self.compress()
 
     @property
@@ -120,13 +122,3 @@ class Sensor:
     
     def __repr__(self):
         return f"Sensor(location={self.location}, category={self.category}, id={self.id})"
-
-    @property
-    def value(self):
-        return self._value
-    
-    @value.setter
-    def value(self, new_value):
-        if new_value is not None:
-            self.meta['columns'] = list(new_value.columns)
-        self._value = new_value

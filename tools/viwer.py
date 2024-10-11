@@ -255,7 +255,7 @@ class MainWindow(QMainWindow):
             
             checked = item.data(1, Qt.UserRole).get()
             checked.append('time')
-            df = sensor._value[checked]
+            df = sensor.value[checked]
             df.name = sensor.name
             dfs.append(df)
 
@@ -301,11 +301,8 @@ class MainWindow(QMainWindow):
         self.scrollWidget.setFixedWidth(max_width)
 
     def update_plot_canvas(self):
-        for plot_canvas in PlotCanvas.PlotCanvas_list:
-            plot_canvas.setLimits(self.top.onLimits.isChecked())
-
-        for plot_canvas in PlotCanvas.PlotCanvas_list:
-            plot_canvas.setShareRange(self.top.onShareRange.isChecked())
+        PlotCanvas.setLimits(self.top.onLimits.isChecked())
+        PlotCanvas.setShareRange(self.top.onShareRange.isChecked())
 
 
 if __name__ == '__main__':
