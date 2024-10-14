@@ -3,6 +3,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from tools.utils import *
 import matplotlib.pyplot as plt
+from src.data.dataset import TimeSeriesDataset
 
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False 
@@ -48,7 +49,7 @@ def plotMissingValues(df):
             plt.scatter(idx, nan_values.loc[idx, '1분 강수량(mm)'], color='green', label='NaN with non-zero neighbors', s=20, alpha=0.5)
 
 
-def concat_road_rainfall(minute_interval=1, rolling_windows=[10, 30, 60, 120], save_path='datasets/sensor/서울/노면+강수량2'):
+def concat_road_rainfall(save_path, minute_interval=1, rolling_windows=[10, 30, 60, 120]):
     rainfall_sensors = getAllSensors('datasets/sensor/서울/강수량계')
     road_sensors = getAllSensors('datasets/sensor/서울/노면수위계')
 
@@ -76,5 +77,23 @@ def concat_road_rainfall(minute_interval=1, rolling_windows=[10, 30, 60, 120], s
 
 
 if __name__ == '__main__':
-    concat_road_rainfall(minute_interval=10, save_path='datasets/sensor/서울/노면+강수량10분단위')
-    concat_road_rainfall(minute_interval=1, save_path='datasets/sensor/서울/노면+강수량1분단위')
+    # concat_road_rainfall(minute_interval=10, save_path='datasets/sensor/서울/노면+강수량10분단위')
+    # concat_road_rainfall(minute_interval=1, save_path='datasets/sensor/서울/노면+강수량1분단위')
+
+    sensors  = getAllSensors('datasets/sensor/서울/노면+강수량10분단위', only_meta=False)
+    for sensor in sensors:
+        df = sensor.value
+
+        dataset = TimeSeriesDataset(df, input_window_size=12, output_window_size=6, n=2, threshold=1)
+        print(dataset.valid_indices)
+        df['조건충족1'] = 0
+        df.loc[dataset.valid_indices, '조건충족1'] = 1
+
+        dataset = TimeSeriesDataset(df, input_window_size=12, output_window_size=6, n=1, threshold=1)
+        print(dataset.valid_indices)
+        df['조건충족2'] = 0
+        df.loc[dataset.valid_indices, '조건충족2'] = 1
+
+        sensor.save(f'datasets/sensor/서울/final/{sensor.id}')
+
+        # all_data = np.array([np.concatenate((dataset[i][0], dataset[i][1]), axis=0) for i in range(len(dataset))])
