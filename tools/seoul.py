@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from utils import path2df
+from src.utils import path2df
 import pandas as pd
 import glob
 from src import Sensor

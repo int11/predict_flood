@@ -1,13 +1,12 @@
-import sys
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QIntValidator
-import pandas as pd
-import pyqtgraph as pg
-from PyQt5.QtGui import QColor
-from pyqtgraph import DateAxisItem
-from PyQt5.QtCore import pyqtSignal, QObject, Qt
-from PyQt5.QtCore import QDateTime
 import numpy as np
+import pandas as pd
+
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QIntValidator, QColor
+from PyQt5.QtCore import pyqtSignal, QObject, Qt, QDateTime
+
+import pyqtgraph as pg
+from pyqtgraph import DateAxisItem
 
 
 class CustomDateAxisItem(DateAxisItem):

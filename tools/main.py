@@ -1,9 +1,12 @@
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-from tools.utils import *
+from src.utils import *
 import matplotlib.pyplot as plt
 from src.data.dataset import TimeSeriesDataset
+import numpy as np
+import pickle
+
 
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False 
@@ -80,7 +83,7 @@ if __name__ == '__main__':
     # concat_road_rainfall(minute_interval=10, save_path='datasets/sensor/서울/노면+강수량10분단위')
     # concat_road_rainfall(minute_interval=1, save_path='datasets/sensor/서울/노면+강수량1분단위')
 
-    sensors  = getAllSensors('datasets/sensor/서울/노면+강수량10분단위', only_meta=False)
+    sensors  = getAllSensors('datasets/sensor/서울/노면+강수량1분단위', only_meta=False)
     for sensor in sensors:
         df = sensor.value
 
@@ -94,6 +97,10 @@ if __name__ == '__main__':
         df['조건충족2'] = 0
         df.loc[dataset.valid_indices, '조건충족2'] = 1
 
-        sensor.save(f'datasets/sensor/서울/final/{sensor.id}')
+        sensor.save(f'datasets/sensor/서울/final_1분/{sensor.id}')
 
-        # all_data = np.array([np.concatenate((dataset[i][0], dataset[i][1]), axis=0) for i in range(len(dataset))])
+        all_data = np.array([np.concatenate((dataset[i][0], dataset[i][1]), axis=0) for i in range(len(dataset))])
+        # np.array를 피클 파일로 저장
+        with open(f'datasets/sensor/서울/final_1분/{sensor.id}/result.pkl', 'wb') as f:
+            pickle.dump(all_data, f)
+        print(1)
