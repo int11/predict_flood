@@ -122,3 +122,9 @@ class Sensor:
     
     def __repr__(self):
         return f"Sensor(location={self.location}, category={self.category}, id={self.id})"
+    
+
+    def copy(self):
+        new_meta = self.meta.copy()
+        new_value = self.value.copy() if self.value is not None else None
+        return Sensor(new_meta, new_value, self.path)

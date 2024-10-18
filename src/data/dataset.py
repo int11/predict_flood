@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, df, input_window_size, output_window_size, n, threshold):
+    def __init__(self, df, input_window_size, output_window_size, axis, threshold, time_stride=1, data_stride=1):
         """
         data: 시계열 데이터를 포함하는 1차원 또는 2차원 배열
         input_window_size: 입력으로 사용할 과거 데이터의 길이
@@ -18,7 +18,7 @@ class TimeSeriesDataset(Dataset):
 
         self.valid_indices = [
             i for i in range(len(self.data) - self.total_window_size + 1)
-            if self.data[i:i+self.input_window_size, n].mean() > threshold
+            if self.data[i:i+self.input_window_size, axis].mean() > threshold
         ]
 
     def __len__(self):

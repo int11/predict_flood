@@ -78,7 +78,7 @@ class MainWidget(QMainWindow):
             checked = item.data(1, Qt.UserRole).get()
             checked.append('time')
             df = sensor.value[checked]
-            df.name = sensor.name
+            df.name = sensor.path
             dfs.append(df)
 
         canvas = PlotCanvas(
