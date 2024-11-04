@@ -30,6 +30,8 @@ class MapWidget(QWidget):
                 icon = folium.Icon(color='red', icon='cloud')
             elif sensor.category == '하수관로수위계':
                 icon = folium.Icon(color='green', icon='tint')
+            elif sensor.category == '노면수위계2024':
+                icon = folium.Icon(color='purple', icon='tint')
             else:
                 icon = folium.Icon()
 

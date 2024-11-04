@@ -3,6 +3,10 @@ import os
 from src import Sensor
 import requests
 from io import StringIO
+import asyncio
+import aiohttp
+from datetime import datetime, timedelta
+
 
 def path2df(file_paths, encoding='utf-8'):
     # 파일을 DataFrame으로 불러와 저장할 딕셔너리
@@ -39,12 +43,26 @@ def searchSensors(sensors, location:str=None, category:str=None, id:str=None):
             continue
         matched_sensors.append(sensor)
 
+    if len(matched_sensors) == 0:
+        return None
     if len(matched_sensors) == 1:
         matched_sensors = matched_sensors[0]
     return matched_sensors
 
 
-def download_rainfall(authKey, start="202208080000", end="202208160000", stn="401"):
+def findNearestSensor(sensor, sensors):
+    # 주어진 센서의 sensor.meta['WGS84']['latitude']와, sensor.meta['WGS84']['longitude']을 이용해 가장 가까운 센서를 찾습니다.
+    min_distance = float('inf')
+    nearest_sensor = None
+    for s in sensors:
+        distance = (sensor.meta['WGS84']['latitude'] - s.meta['WGS84']['latitude']) ** 2 + (sensor.meta['WGS84']['longitude'] - s.meta['WGS84']['longitude']) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            nearest_sensor = s
+    return nearest_sensor, min_distance
+
+
+def _download_rainfall(authKey, start="202208080000", end="202208160000", stn="401"):
     """
     기상청 api를 이용하여 강수량 데이터를 다운로드합니다.
     기상청 api는 최대 12시간 단위로 데이터를 다운로드할 수 있습니다.
@@ -128,8 +146,6 @@ def recalculate_accumulation(df, window_size):
         
     if not (df[:window_size-1] == 0).all().all():
         raise ValueError("The first window_size values must be 0")
-    
-
 
     result = df.copy()
     for i in range(window_size, len(df)):
@@ -137,13 +153,106 @@ def recalculate_accumulation(df, window_size):
     return result
 
 
-def findNearestSensor(sensor, sensors):
-    # 주어진 센서의 sensor.meta['WGS84']['latitude']와, sensor.meta['WGS84']['longitude']을 이용해 가장 가까운 센서를 찾습니다.
-    min_distance = float('inf')
-    nearest_sensor = None
-    for s in sensors:
-        distance = (sensor.meta['WGS84']['latitude'] - s.meta['WGS84']['latitude']) ** 2 + (sensor.meta['WGS84']['longitude'] - s.meta['WGS84']['longitude']) ** 2
-        if distance < min_distance:
-            min_distance = distance
-            nearest_sensor = s
-    return nearest_sensor
+def get_lat_lon(address, api_key=None):
+    '''
+    구글 API를 이용하여 주소로부터 위도와 경도를 가져옵니다.
+    Args:
+    ----
+    address
+        주소
+    api_key
+        Google Map API 키
+    '''
+    base_url = 'https://maps.googleapis.com/maps/api/geocode/json'
+    params = {'address': address, 'key': api_key}
+    response = requests.get(base_url, params=params)
+    if response.status_code == 200:
+        results = response.json().get('results')
+    if results:
+        location = results[0]['geometry']['location']
+        return location['lat'], location['lng']
+    return None, None
+
+
+async def _download_sewer(start_date, end_date, api_key):
+    '''
+    https://data.seoul.go.kr/dataList/OA-2527/S/1/datasetView.do
+    Args:
+    ----
+    start_date:
+        시작 날짜 (포맷: %Y%m%d%H)
+    end_date:
+        종료 날짜 (포맷: %Y%m%d%H)
+    api_key:
+        서울 열린데이터 광장에서 발급받은 API 키
+    '''
+
+    async def fetch_data(session, url):
+        i = 1
+        while True:
+            try:
+                async with session.get(url, timeout=10) as response:
+                    data = await response.json()
+                    if data is None:
+                        raise ValueError("No data received")
+                    elif data.get('RESULT', {}).get('CODE') == 'ERROR-500':
+                        raise ValueError("Server error (500)")
+                    return data
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+                print(f"Error at {url}: {e}, retrying {i}")
+                i += 1
+                await asyncio.sleep(2)  # 재시도 전에 잠시 대기
+    
+    base_url = "http://openapi.seoul.go.kr:8088"
+    api_key = api_key
+    data_type = "json"
+    service = "DrainpipeMonitoringInfo"
+    
+    result = []
+    start_date = datetime.strptime(start_date, "%Y%m%d%H")
+    end_date = datetime.strptime(end_date, "%Y%m%d%H")
+
+    while start_date <= end_date:
+        start_date_str = start_date.strftime("%Y%m%d%H")
+        next_week_date = start_date + timedelta(days=6, hours=23)
+        end_date_str = min(next_week_date, end_date).strftime("%Y%m%d%H")
+        
+        async with aiohttp.ClientSession() as session:
+            tasks = []
+            for sensor_id in range(25):
+                sensor_id = str(sensor_id+1).zfill(2)
+                url = f"{base_url}/{api_key}/{data_type}/{service}/{0}/{1}/{sensor_id}/{start_date_str}/{end_date_str}"
+                tasks.append(fetch_data(session, url))
+            responses = await asyncio.gather(*tasks)
+            
+
+            for sensor_id in range(25):
+                response = responses[sensor_id]
+                if 'DrainpipeMonitoringInfo' not in response:
+                    print(f"No data for sensor_id: {sensor_id}")
+                    continue
+
+                totle_rows = response['DrainpipeMonitoringInfo']['list_total_count']
+                sensor_id = str(sensor_id+1).zfill(2)
+                print("sensor_id:", sensor_id, "total_rows:", totle_rows)
+
+                tasks = []
+                for i in range(0, totle_rows, 1000):
+                    url = f"{base_url}/{api_key}/{data_type}/{service}/{i}/{i+999}/{sensor_id}/{start_date_str}/{end_date_str}"
+                    tasks.append(fetch_data(session, url))
+
+                more_data = await asyncio.gather(*tasks)
+                for item in more_data:
+                    if item:
+                        result.extend(item['DrainpipeMonitoringInfo']['row'])
+        
+        start_date = start_date + timedelta(days=7)
+
+    df = pd.DataFrame(result)
+    column_names = df.columns
+    updated_columns = {col: df[col].to_numpy() for col in column_names}
+    df = pd.DataFrame(updated_columns)
+    return df
+
+def download_sewer(*args, **kwargs):
+    return asyncio.run(_download_sewer(*args, **kwargs))

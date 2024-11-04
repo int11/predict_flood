@@ -126,12 +126,33 @@ def save_dataset(dataset:torch.utils.data.Dataset, path:str):
 
 
 def main(minute_interval, rolling_windows, input_window_size, output_window_size, axis, threshold):
-    road_sensors = getAllSensors('datasets/sensor/서울/노면수위계', only_meta=False)
+    '''
+    Args
+    ----
+    minute_interval :
+        노면수위계와 강수량계 데이터를 몇 분 간격으로 저장할지
+    rolling_windows :
+        사용할 누적강수량
+    input_window_size :
+        입력 데이터의 시간 간격
+    output_window_size :
+        출력 데이터의 시간 간격
+    axis, threshold :
+       input_window_size 기준으로 axis 열 평균이 threshold 이상인 데이터만 사용
+        ex) minute_interval 1, input_window_size 12, threshold=1, axis=2, 3번째 열은 30분 누적강수량
+            30분 누적강수량 12분 평균이 1 이상인 데이터만 사용
+        ex) minute_interval 1, input_window_size 120, threshold=1, axis=1, 1번째 열은 노면수위
+            노면수위 120분 평균이 1 이상인 데이터만 사용
+        ex) minute_interval 10, input_window_size 12, threshold=1, axis=2, 2번째 열은 10분 누적강수량
+            10분 누적강수량 120분 평균이 1 이상인 데이터만 사용
+    '''
+    road_sensors = getAllSensors('datasets/sensor/서울/노면수위계2024', only_meta=False)
     rainfall_sensors = getAllSensors('datasets/sensor/서울/강수량계', only_meta=False)
 
     for road_sensor in road_sensors:
-        rainfall_sensor = findNearestSensor(road_sensor, rainfall_sensors)
-        result = road_append_rainfall(road_sensor, rainfall_sensor, minute_interval=minute_interval)
+        rainfall_sensor, min_distance = findNearestSensor(road_sensor, rainfall_sensors)
+        
+        result = road_append_rainfall(road_sensor, rainfall_sensor, minute_interval=minute_interval, rolling_windows=rolling_windows)
 
         result.value.rename(columns={'value': '노면수위'}, inplace=True)
         
@@ -147,8 +168,9 @@ def main(minute_interval, rolling_windows, input_window_size, output_window_size
 
 
 if __name__ == '__main__':
-    main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=2, threshold=1)
-    main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=2, threshold=0.5)
-
-    main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=1, threshold=1)
-    main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=1, threshold=0.5)
+    # 강수량 기준
+    # main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=12, axis=2, threshold=1)
+    main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=12, axis=2, threshold=0.5)
+    # 노면수위 기준
+    # main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=1, threshold=1)
+    # main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=1, threshold=0.5)

@@ -15,7 +15,6 @@ class CustomDateAxisItem(DateAxisItem):
         return [QDateTime.fromSecsSinceEpoch(int(value)).toString('yyyy/MM/dd HH:mm:ss') for value in values]
 
 
-# PlotCanvas 클래스 내에서 CustomDateAxisItem 사용
 class PlotCanvas(QWidget):
     PlotCanvas_list = []
     emitDeletionRequest = pyqtSignal(QObject)  # QObject 타입의 신호를 발생시킬 수 있는 pyqtSignal 정의
@@ -82,10 +81,20 @@ class PlotCanvas(QWidget):
 
         # x time 축 제대로 설정
         all_x_values = np.concatenate([df['time'].apply(lambda dt: int(QDateTime(dt).toSecsSinceEpoch())).values for df in dfs])
-        padding = 0.02 * (all_x_values.max() - all_x_values.min())
-        self.x_range = [all_x_values.min() - padding, all_x_values.max() + padding]
-        self.y_range = self.graphWidget.getViewBox().state['viewRange'][1] 
+        max_value, min_value = np.nanmax(all_x_values), np.nanmin(all_x_values)
+        padding = 0.02 * (max_value - min_value)
+        self.x_range = [min_value - padding, max_value + padding]
         self.graphWidget.setXRange(self.x_range[0], self.x_range[1], padding=0)
+
+        # y 축 제대로 설정
+        all_y_values = np.concatenate([df.drop('time', axis=1).values.flatten() for df in dfs])
+        max_value, min_value = np.nanmax(all_y_values), np.nanmin(all_y_values)
+        padding = 0.02 * (max_value - min_value)
+        self.y_range = [min_value - padding, max_value + padding]
+        if self.y_range[0] == 0.0 and self.y_range[1] == 0.0:
+            self.y_range = [-0.2, 1.02]
+        self.graphWidget.setYRange(self.y_range[0], self.y_range[1], padding=0)
+        
 
 
     @staticmethod

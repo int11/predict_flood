@@ -9,8 +9,7 @@ class Sensor:
         'location':'서울특별시 서초구 서초동 1416번지 서초 IC',
         'category':'강수량계',
         'id':401,
-        'WGS84': {'latitude': 37.48462, 'longitude': 127.02601},
-        'columns': ['time', '기온(°C)', '1분 강수량(mm)', '강수유무(유무)', '풍향(deg)', '풍속(m/s)', '현지기압(hPa)', '해면기압(hPa)', '습도(%)', '일사(MJ/m^2)', '일조(Sec)']
+        'WGS84': {'latitude': 37.48462, 'longitude': 127.02601}
     }
     """
     def __init__(self, meta: dict[str, str], value: pd.DataFrame=None, path=None):
@@ -21,7 +20,7 @@ class Sensor:
         self.value = value
         self.path = None
 
-    def save(self, path=None, groupby=False):
+    def save(self, path=None):
         if path is None:
             if self.path is None:
                 raise ValueError('path is None')
@@ -39,16 +38,13 @@ class Sensor:
 
         self.compress()
 
-        if not groupby:
-            # value를 저장합니다.
-            with open(os.path.join(path, 'value.pkl'), 'wb') as value_file:
-                pickle.dump(self.value, value_file)
-        else:
-            # value의 time 열을 분석해 달 별로 나눠서 저장합니다.
-            for (year, month), group in self.value.groupby([self.value['time'].dt.year, self.value['time'].dt.month]):
-                filename = f'{year}_{month}.pkl'
-                with open(os.path.join(path, filename), 'wb') as file:
-                    pickle.dump(group, file)
+        self.value = self.value.reset_index(drop=True)
+        self.value = self.value.sort_values(by='time')
+        
+        # value를 저장합니다.
+        with open(os.path.join(path, 'value.pkl'), 'wb') as value_file:
+            pickle.dump(self.value, value_file)
+
                     
         self.path = path
 
@@ -96,8 +92,26 @@ class Sensor:
                 # 'location'이 같을 경우 'id'를 기준으로 비교합니다.
                 return self.id < other.id
 
-    def concat(self, other):
-        self.value = pd.concat([self.value, other.value])
+    def concat(self, other, keep=None):
+        '''
+        Args
+        ----
+        df : pd.DataFrame
+            추가할 데이터프레임
+        keep : str
+            'first' or 'last' 중 하나를 입력받습니다.
+            'first'인 경우, 같은 시간 데이터가 있을 때 기존 데이터프레임을 유지합니다
+            'last'인 경우, 같은 시간 데이터가 있을 때 덮어씁니다
+        '''
+        if isinstance(other, Sensor):
+            other = other.value
+
+        self.value = pd.concat([self.value, other])
+        if keep is not None:
+            self.value = self.value.drop_duplicates(subset=['time'], keep=keep)
+        
+        self.value = self.value.sort_values(by='time')
+
         self.compress()
 
     @property
@@ -108,23 +122,49 @@ class Sensor:
     def id(self):
         return self.meta['id']
 
+    @id.setter
+    def id(self, value):
+        self.meta['id'] = str(value)
+
     @property
     def location(self):
         return self.meta['location']
+
+    @location.setter
+    def location(self, value):
+        self.meta['location'] = value
 
     @property
     def category(self):
         return self.meta['category']
 
+    @category.setter
+    def category(self, value):
+        self.meta['category'] = value
+
     @property
-    def columns(self):
-        return self.meta['columns']
+    def latitude(self):
+        return self.meta['WGS84']['latitude']
     
+    @latitude.setter
+    def latitude(self, value):
+        self.meta['WGS84']['latitude'] = float(value)
+
+    @property
+    def longitude(self):
+        return self.meta['WGS84']['longitude']
+    
+    @longitude.setter
+    def longitude(self, value):
+        self.meta['WGS84']['longitude'] = float(value)
+
     def __repr__(self):
         return f"Sensor(location={self.location}, category={self.category}, id={self.id})"
     
-
     def copy(self):
         new_meta = self.meta.copy()
         new_value = self.value.copy() if self.value is not None else None
         return Sensor(new_meta, new_value, self.path)
+    
+
+    
