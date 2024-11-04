@@ -81,7 +81,7 @@ class MainWidget(QMainWindow):
             df.name = sensor.path
             dfs.append(df)
 
-        canvas = PlotCanvas(
+        canvas = PlotCanvasWidget(
             dfs,
             width=self.top.width_input.get(),
             height=self.top.height_input.get(), 
@@ -107,7 +107,7 @@ class MainWidget(QMainWindow):
         self.scrollLayout.removeWidget(canvas)
 
         canvas.deleteLater()
-        PlotCanvas.PlotCanvas_list.remove(canvas)
+        PlotCanvasWidget.PlotCanvas_list.remove(canvas)
         self.updateScrollWidgetSize()
         
     def updateScrollWidgetSize(self):
@@ -123,8 +123,8 @@ class MainWidget(QMainWindow):
         self.scrollWidget.setFixedWidth(max_width)
 
     def update_plot_canvas(self):
-        PlotCanvas.setLimits(self.top.onLimits.isChecked())
-        PlotCanvas.setShareRange(self.top.onShareRange.isChecked())
+        PlotCanvasWidget.setLimits(self.top.onLimits.isChecked())
+        PlotCanvasWidget.setShareRange(self.top.onShareRange.isChecked())
 
 
 if __name__ == '__main__':
