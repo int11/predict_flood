@@ -36,11 +36,10 @@ class Sensor:
             meta['columns'] = list(self.value.columns)
             pickle.dump(meta, meta_file)
 
+
+        self.value.sort_values(by='time', inplace=True)
         self.compress()
 
-        self.value = self.value.reset_index(drop=True)
-        self.value = self.value.sort_values(by='time')
-        
         # value를 저장합니다.
         with open(os.path.join(path, 'value.pkl'), 'wb') as value_file:
             pickle.dump(self.value, value_file)

@@ -150,15 +150,36 @@ def main(minute_interval, rolling_windows, input_window_size, output_window_size
     rainfall_sensors = getAllSensors('datasets/sensor/서울/강수량계', only_meta=False)
 
     for road_sensor in road_sensors:
+
+        roaddf = road_sensor.value.sort_values(by='time').reset_index(drop=True)
+        roaddf['time_diff'] = roaddf['time'].diff()
+        missing_data_intervals = roaddf[roaddf['time_diff'] > pd.Timedelta(hours=1)]
+        missing_intervals = []
+        for idx, row in missing_data_intervals.iterrows():
+            start_time = roaddf.loc[idx - 1, 'time']
+            end_time = row['time']
+            missing_intervals.append((start_time, end_time))
+        
+        print(road_sensor.id)
+        print("데이터가 비어있는 구간 리스트:", missing_intervals)
+
+
         rainfall_sensor, min_distance = findNearestSensor(road_sensor, rainfall_sensors)
         
         result = road_append_rainfall(road_sensor, rainfall_sensor, minute_interval=minute_interval, rolling_windows=rolling_windows)
 
         result.value.rename(columns={'value': '노면수위'}, inplace=True)
         
-        dataset = TimeSeriesDataset(result.value, input_window_size=input_window_size, output_window_size=output_window_size, axis=axis, threshold=threshold)
+        dataset = TimeSeriesDataset(result.value, 
+                                    input_window_size=input_window_size, 
+                                    output_window_size=output_window_size, 
+                                    axis=axis, 
+                                    threshold=threshold,
+                                    ignore_intervals=missing_intervals)
+        
         print(f"{result.id} 데이터 갯수:", len(dataset))
 
+        # filter 컬럼 추가
         df = result.value
         df['filter'] = 0
         df.loc[dataset.valid_indices, 'filter'] = 1

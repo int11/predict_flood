@@ -149,9 +149,9 @@ def 노면수위():
 
 
 def 노면수위계2024():
-    df1 = pd.read_csv('roadData/TB_ROADWATERLEVELDATA.txt')
-    meta = pd.read_csv('roadData/TB_ROAD_FLOW_INFO.txt')
-    df2 = pd.read_csv('roadData/2305to10roadwaterlevelData_1min.csv')
+    df1 = pd.read_csv('datasets/original/서울데이터/노면수위/노면수위2024/TB_ROADWATERLEVELDATA.txt')
+    meta = pd.read_csv('datasets/original/서울데이터/노면수위/노면수위2024/TB_ROAD_FLOW_INFO.txt')
+    df2 = pd.read_csv('datasets/original/서울데이터/노면수위/노면수위2024/2305to10roadwaterlevelData_1min.csv')
 
 
     df1 = df1.drop(columns=['IDX'])
@@ -183,3 +183,4 @@ if __name__ == '__main__':
     # 강수량()
     # 하수관로()
     # 노면수위()
+    노면수위계2024()
