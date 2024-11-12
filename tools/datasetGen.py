@@ -121,8 +121,7 @@ def save_dataset(dataset:torch.utils.data.Dataset, path:str):
     os.makedirs(sensor_dir, exist_ok=True)
 
     all_data = np.array([np.concatenate((dataset[i][0], dataset[i][1]), axis=0) for i in range(len(dataset))])
-    with open(path, 'wb') as f:
-        pickle.dump(all_data, f)
+    np.save(path, all_data)
 
 
 def main(minute_interval, rolling_windows, input_window_size, output_window_size, axis, threshold):
@@ -150,7 +149,6 @@ def main(minute_interval, rolling_windows, input_window_size, output_window_size
     rainfall_sensors = getAllSensors('datasets/sensor/서울/강수량계', only_meta=False)
 
     for road_sensor in road_sensors:
-
         roaddf = road_sensor.value.sort_values(by='time').reset_index(drop=True)
         roaddf['time_diff'] = roaddf['time'].diff()
         missing_data_intervals = roaddf[roaddf['time_diff'] > pd.Timedelta(hours=1)]
@@ -185,13 +183,15 @@ def main(minute_interval, rolling_windows, input_window_size, output_window_size
         df.loc[dataset.valid_indices, 'filter'] = 1
 
         result.save(f"datasets/sensor/서울/한 데이터의 시간 간격 {minute_interval}분, 데이터 간격 {minute_interval}분, '{result.value.columns[axis]}'열 {minute_interval * input_window_size}분 평균 {threshold} 이상/{result.id}_{rainfall_sensor.id}")
-        save_dataset(dataset, f'{result.path}/result.pkl')
+        save_dataset(dataset, f'{result.path}/result.npy')
 
 
 if __name__ == '__main__':
     # 강수량 기준
     # main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=12, axis=2, threshold=1)
-    main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=12, axis=2, threshold=0.5)
+
+    main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=12, axis=2, threshold=0.04)
+
     # 노면수위 기준
     # main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=1, threshold=1)
     # main(minute_interval=10, rolling_windows=[10, 30, 60, 120, 180], input_window_size=12, output_window_size=6, axis=1, threshold=0.5)

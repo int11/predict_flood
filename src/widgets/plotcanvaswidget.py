@@ -7,6 +7,7 @@ from PyQt5.QtCore import pyqtSignal, QObject, QDateTime
 from pyqtgraph import DateAxisItem
 
 import pyqtgraph as pg
+pg.setConfigOptions(useOpenGL=True)
 
 
 class CustomDateAxisItem(DateAxisItem):
@@ -70,7 +71,6 @@ class PlotCanvasWidget(QWidget):
                     plot = self.graphWidget.plot(x, y, symbol='o', pen=None, symbolBrush=color, symbolSize=s, name=col)
                 current_hue = (current_hue + hue_step) % 360  # 다음 색상으로 업데이트
                 legend.addItem(plot, f"{df.name} {col}")  # 첫 번째 데이터 세트에 대한 범례
-
 
         # 마우스 이벤트 처리를 위한 SignalProxy 설정
         self.proxy = pg.SignalProxy(self.graphWidget.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)

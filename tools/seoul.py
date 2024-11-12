@@ -161,7 +161,8 @@ def 노면수위계2024():
     df2.rename(columns={'device_id': 'id'}, inplace=True)
 
     df = pd.concat([df1, df2])
-
+    
+    # df[df['value'] == 6].groupby('id').size()
     grouped = df.groupby('id')
     for i in grouped:
         id, group = i

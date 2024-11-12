@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import pandas as pd
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, df, input_window_size, output_window_size, axis, threshold, ignore_intervals: list[tuple[pd.Timestamp, pd.Timestamp]]):
+    def __init__(self, df, input_window_size, output_window_size, axis, threshold, ignore_intervals: list[tuple[pd.Timestamp, pd.Timestamp]]=None):
         """
         Args:
         -----
@@ -21,7 +21,7 @@ class TimeSeriesDataset(Dataset):
         self.input_window_size = input_window_size
         self.output_window_size = output_window_size
         self.total_window_size = input_window_size + output_window_size
-        self.ignore_intervals = ignore_intervals
+        self.ignore_intervals = ignore_intervals if ignore_intervals is not None else []
 
         self.valid_indices = [
             i for i in range(len(self.data) - self.total_window_size + 1)
