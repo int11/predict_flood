@@ -6,8 +6,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 from src.widgets import *
-from src import Sensor
-from src.utils import getAllSensors
+from src.sensor import Sensor, getAllSensors
 
 
 class MainWidget(QMainWindow):

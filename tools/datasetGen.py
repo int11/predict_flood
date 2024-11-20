@@ -7,44 +7,10 @@ from src.data.dataset import TimeSeriesDataset
 import numpy as np
 import pickle
 import torch
-from src import Sensor
+from src.sensor import Sensor, getAllSensors, findNearestSensor
 
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False 
-
-def checkMissingValues(df):
-    r_num = df.isna().sum()
-    num = len(df)
-    per = round(r_num/num,3) * 100
-    print(f"강수량계 전체 데이터 수 : {num}")
-    print(f"결측값 수 :")
-    print(r_num)
-    print(f"결측치 비중 :")
-    print(per)
-
-def plotMissingValues(df):
-    # NaN 값을 빨간 점으로 표시
-    nan_values = df[df.isna().any(axis=1)].fillna(0)
-    plt.scatter(nan_values.index, nan_values['1분 강수량(mm)'], color='red', label='NaN Values', alpha=0.5 , s=1)
-    
-    # NaN이 아닌 값들을 파란 점으로 표시
-    non_nan_values = df.dropna()
-    plt.plot(non_nan_values.index, non_nan_values['1분 강수량(mm)'], color='blue', label='Valid Data', alpha=0.2)
-    
-    # NaN 값의 이전 값과 이후 값이 0 또는 NaN인지 확인
-    nan_indices = df[df.isna().any(axis=1)].index
-    previous_values = df.shift(1).loc[nan_indices]
-    next_values = df.shift(-1).loc[nan_indices]
-    previous_values_zero_or_nan = (previous_values == 0) | (previous_values.isna())
-    next_values_zero_or_nan = (next_values == 0) | (next_values.isna())
-    
-    # 결과 출력
-    for idx, (prev_is_zero_or_nan, next_is_zero_or_nan) in zip(nan_indices, zip(previous_values_zero_or_nan['1분 강수량(mm)'], next_values_zero_or_nan['1분 강수량(mm)'])):
-        if prev_is_zero_or_nan and next_is_zero_or_nan:
-            pass
-        else:
-            print(f"NaN at {idx} does not have previous and next value 0 or NaN")
-            plt.scatter(idx, nan_values.loc[idx, '1분 강수량(mm)'], color='green', label='NaN with non-zero neighbors', s=20, alpha=0.5)
 
 
 def road_append_rainfall(road_sensor : Sensor,
@@ -97,8 +63,6 @@ def road_append_rainfall(road_sensor : Sensor,
     rainfall = rainfall[['time', '1분 누적강수량(mm)']].set_index('time')
     #  1분 강수량 열 자체가 없는 경우 
     rainfall = rainfall.resample('1min').first()
-    
-    checkMissingValues(rainfall)
 
     rainfall = rainfall.interpolate()
 
