@@ -2,12 +2,10 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from src.utils import path2df
-import pandas as pd
 import glob
-from src import Sensor
+import pandas as pd
 from src.utils import *
-import pickle
+from src.sensor import *
 
 
 def 강수량():
@@ -30,6 +28,7 @@ def 강수량():
     
     obj = Sensor(meta, value)
     obj.save(path=f'datasets/sensor/서울/강수량계/{obj.meta["id"]}')
+
 
 def 강수량append():
     import glob
