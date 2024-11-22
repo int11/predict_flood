@@ -3,19 +3,25 @@ from torch.utils.data import Dataset
 import pandas as pd
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, df, input_window_size, output_window_size, axis, threshold, ignore_intervals: list[tuple[pd.Timestamp, pd.Timestamp]]=None):
+    def __init__(self,
+                 df, 
+                 input_window_size, 
+                 output_window_size, 
+                 axis, threshold, 
+                 ignore_intervals: list[tuple[pd.Timestamp, pd.Timestamp]]=None):
         """
         Args:
         -----
-        data: 시계열 데이터를 포함하는 1차원 또는 2차원 배열
-        input_window_size: 입력으로 사용할 과거 데이터의 길이
-        output_window_size: 출력으로 사용할 미래 데이터의 길이
-        n, s: input_window_size 기간 동안의 데이터 중 n열 값의 평균이 threshold 이상인 데이터만 사용
-        ignore_intervals: 무시할 구간 리스트
+        df: DataFrame
+        input_window_size: 입력으로 사용할 데이터의 길이
+        output_window_size: 출력으로 사용할 데이터의 길이
+        axis : threshold를 적용할 열
+        threshold : feature 중 지정된 axis의 input_window_size 기간 동안 평균이 threshold 이상인 데이터만 사용
+        ignore_intervals: 강제로 무시할 구간 리스트
         """
 
         temp_df = df.copy()
-        temp_df['time'] = temp_df['time'].dt.strftime('%Y%m%d%H%M').astype(int)
+        temp_df['time'] = temp_df['time'].dt.strftime('%Y%m%d%H%M').apply(int)
         self.data = temp_df.to_numpy()
 
         self.input_window_size = input_window_size
@@ -45,4 +51,5 @@ class TimeSeriesDataset(Dataset):
         valid_index = self.valid_indices[index]
         x = self.data[valid_index:valid_index+self.input_window_size]
         y = self.data[valid_index+self.input_window_size:valid_index+self.total_window_size]
+
         return torch.tensor(x), torch.tensor(y)

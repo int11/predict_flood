@@ -32,7 +32,7 @@ def 강수량():
 
 def 강수량append():
     import glob
-    csv_files = glob.glob("datasets/original/서울데이터/원데이터/강수량/**/*.csv")
+    csv_files = glob.glob("datasets/original/서울데이터/강수량/**/*.csv")
     sensors = getAllSensors('datasets/sensor/서울/강수량계', only_meta=False)
 
     for csv_file in csv_files:
@@ -49,8 +49,7 @@ def 강수량append():
         data['time'] = pd.to_datetime(data['time'])
         
         sensor = searchSensors(sensors, id=sensor_id)
-        concat_df = pd.concat([sensor.value, data])
-        sensor.value = concat_df.groupby('time').last().reset_index()
+        sensor.concat(data)
         
         sensor.save(sensor.path)
 
@@ -181,6 +180,7 @@ def 노면수위계2024():
         
 if __name__ == '__main__':
     # 강수량()
+    강수량append()
     # 하수관로()
     # 노면수위()
-    노면수위계2024()
+    # 노면수위계2024()

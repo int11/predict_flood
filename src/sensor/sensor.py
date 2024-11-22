@@ -110,7 +110,6 @@ class Sensor:
             self.value = self.value.drop_duplicates(subset=['time'], keep=keep)
         
         self.value = self.value.sort_values(by='time')
-
         self.compress()
 
     @property

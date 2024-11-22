@@ -3,77 +3,13 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from src.utils import *
 import matplotlib.pyplot as plt
-from src.data.dataset import TimeSeriesDataset
+from src.data import *
 import numpy as np
-import pickle
 import torch
-from src.sensor import Sensor, getAllSensors, findNearestSensor
+from src.sensor import getAllSensors, findNearestSensor
 
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False 
-
-
-def road_append_rainfall(road_sensor : Sensor,
-                         rainfall_sensor: Sensor,
-                         minute_interval=1, 
-                         rolling_windows=[10, 30, 60, 120, 180]):
-    '''
-    노면수위계 데이터에 누적강수량을 추가하는 함수
-
-    road_sensor는 [time, value] 컬럼을 가지고 있어야 함
-    rainfall_sensor는 [time, 1분 누적강수량(mm)] 컬럼을 가지고 있어야 함
-
-    노면수위계는 .resample('1s').max().ewm(alpha=0.9, adjust=False).mean() 으로 결측치 보간
-    강수량계는 .resample('1min').first().interpolate() 으로 결측치 보간
-
-
-    Args
-    ----
-    save_path :
-        저장 경로
-    minute_interval :
-        노면수위계와 강수량계 데이터를 몇 분 간격으로 저장할지
-    rolling_windows :
-        사용할 누적강수량
-    road_sensor :
-        노면수위계 데이터가 저장된 디렉토리
-    rainfall_sensors :
-        강수량계 데이터가 저장된 디렉토리
-
-
-    Returns
-    -------
-    road rainfall 합쳐진 Sensor 객체
-    '''
-
-    # Ensure road_sensor has 'time' and 'value' columns
-    if not {'time', 'value'}.issubset(road_sensor.value.columns):
-        raise ValueError("road_sensor must have 'time' and 'value' columns")
-    
-    # Ensure each rainfall_sensor has 'time' and '1분 누적강수량(mm)' columns
-    if not {'time', '1분 누적강수량(mm)'}.issubset(rainfall_sensor.value.columns):
-        raise ValueError("Each rainfall_sensor must have 'time' and '1분 누적강수량(mm)' columns")
-
-
-    road = road_sensor.value.set_index('time')
-    df = road.resample('1s').max().ewm(alpha=0.9, adjust=False).mean().resample(f'{minute_interval}min').max()
-
-    
-    rainfall = rainfall_sensor.value
-    rainfall = rainfall[['time', '1분 누적강수량(mm)']].set_index('time')
-    #  1분 강수량 열 자체가 없는 경우 
-    rainfall = rainfall.resample('1min').first()
-
-    rainfall = rainfall.interpolate()
-
-    for window in rolling_windows:
-        df[f'{window}분 누적강수량'] = rainfall.rolling(window=window).sum()
-
-    # df = df.resample(f'{minute_interval}min').first()
-
-    road_sensor.value = df.reset_index()
-
-    return road_sensor.copy()
 
 
 def save_dataset(dataset:torch.utils.data.Dataset, path:str):
@@ -113,25 +49,14 @@ def main(minute_interval, rolling_windows, input_window_size, output_window_size
     rainfall_sensors = getAllSensors('datasets/sensor/서울/강수량계', only_meta=False)
 
     for road_sensor in road_sensors:
-        roaddf = road_sensor.value.sort_values(by='time').reset_index(drop=True)
-        roaddf['time_diff'] = roaddf['time'].diff()
-        missing_data_intervals = roaddf[roaddf['time_diff'] > pd.Timedelta(hours=1)]
-        missing_intervals = []
-        for idx, row in missing_data_intervals.iterrows():
-            start_time = roaddf.loc[idx - 1, 'time']
-            end_time = row['time']
-            missing_intervals.append((start_time, end_time))
-        
-        print(road_sensor.id)
+        rainfall_sensor, min_distance = findNearestSensor(road_sensor, rainfall_sensors)
+        print(road_sensor.id, rainfall_sensor.id, min_distance)
+
+        result = concat_road_rainfall(road_sensor, rainfall_sensor, minute_interval=minute_interval, rolling_windows=rolling_windows)
+        missing_intervals = find_missing_intervals(road_sensor, hours=1)
+
         print("데이터가 비어있는 구간 리스트:", missing_intervals)
 
-
-        rainfall_sensor, min_distance = findNearestSensor(road_sensor, rainfall_sensors)
-        
-        result = road_append_rainfall(road_sensor, rainfall_sensor, minute_interval=minute_interval, rolling_windows=rolling_windows)
-
-        result.value.rename(columns={'value': '노면수위'}, inplace=True)
-        
         dataset = TimeSeriesDataset(result.value, 
                                     input_window_size=input_window_size, 
                                     output_window_size=output_window_size, 
@@ -139,14 +64,14 @@ def main(minute_interval, rolling_windows, input_window_size, output_window_size
                                     threshold=threshold,
                                     ignore_intervals=missing_intervals)
         
-        print(f"{result.id} 데이터 갯수:", len(dataset))
+        print(f"데이터 갯수:", len(dataset))
 
         # filter 컬럼 추가
         df = result.value
         df['filter'] = 0
         df.loc[dataset.valid_indices, 'filter'] = 1
 
-        result.save(f"datasets/sensor/서울/한 데이터의 시간 간격 {minute_interval}분, 데이터 간격 {minute_interval}분, '{result.value.columns[axis]}'열 {minute_interval * input_window_size}분 평균 {threshold} 이상/{result.id}_{rainfall_sensor.id}")
+        result.save(f"datasets/sensor/서울/window간 간격 {minute_interval}분, 다음 데이터간 간격 {minute_interval}분, '{result.value.columns[axis]}'열 {minute_interval * input_window_size}분 평균 {threshold} 이상/{result.id}_{rainfall_sensor.id}")
         save_dataset(dataset, f'{result.path}/result.npy')
 
 

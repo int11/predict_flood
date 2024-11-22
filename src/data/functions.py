@@ -1,5 +1,4 @@
 import pandas as pd
-import os 
 from src import Sensor
 import requests
 from io import StringIO
@@ -165,3 +164,84 @@ async def _download_sewer(start_date, end_date, api_key):
 
 def download_sewer(*args, **kwargs):
     return asyncio.run(_download_sewer(*args, **kwargs))
+
+
+def concat_road_rainfall(road_sensor : Sensor,
+                         rainfall_sensor: Sensor,
+                         minute_interval=1, 
+                         rolling_windows=[10, 30, 60, 120, 180]):
+    '''
+    노면수위계 데이터와 누적강수량을 전처리해 합칩니다.
+
+    road_sensor는 [time, value] 컬럼을 가지고 있어야 함
+    rainfall_sensor는 [time, 1분 누적강수량(mm)] 컬럼을 가지고 있어야 함
+
+    노면수위계는 .resample('1s').max().ewm(alpha=0.9, adjust=False).mean() 으로 결측치 보간
+    강수량계는 .resample('1min').first().interpolate() 으로 결측치 보간
+
+
+    Args
+    ----
+    save_path :
+        저장 경로
+    minute_interval :
+        노면수위계와 강수량계 데이터를 몇 분 간격으로 저장할지
+    rolling_windows :
+        사용할 누적강수량
+    road_sensor :
+        노면수위계 데이터가 저장된 디렉토리
+    rainfall_sensors :
+        강수량계 데이터가 저장된 디렉토리
+
+
+    Returns
+    -------
+    road rainfall 합쳐진 Sensor 객체
+    '''
+
+    # Ensure road_sensor has 'time' and 'value' columns
+    if not {'time', 'value'}.issubset(road_sensor.value.columns):
+        raise ValueError("road_sensor must have 'time' and 'value' columns")
+    
+    # Ensure each rainfall_sensor has 'time' and '1분 누적강수량(mm)' columns
+    if not {'time', '1분 누적강수량(mm)'}.issubset(rainfall_sensor.value.columns):
+        raise ValueError("Each rainfall_sensor must have 'time' and '1분 누적강수량(mm)' columns")
+
+
+    road = road_sensor.value.copy().set_index('time')
+    df = road.resample('1s').max().ewm(alpha=0.9, adjust=False).mean().resample(f'{minute_interval}min').max()
+
+    
+    rainfall = rainfall_sensor.value.copy()
+    rainfall = rainfall[['time', '1분 누적강수량(mm)']].set_index('time')
+    #  1분 강수량 열 자체가 없는 경우 
+    rainfall = rainfall.resample('1min').first()
+
+    rainfall = rainfall.interpolate()
+
+    for window in rolling_windows:
+        df[f'{window}분 누적강수량'] = rainfall.rolling(window=window).sum()
+
+    # df = df.resample(f'{minute_interval}min').first()
+
+    result = Sensor(road_sensor.meta, df.reset_index())
+    result.compress()
+
+    return result
+
+
+def find_missing_intervals(df, hours):
+    if isinstance(df, Sensor):
+        df = df.value
+
+    roaddf = df.sort_values(by='time').reset_index(drop=True)
+    roaddf['time_diff'] = roaddf['time'].diff()
+    missing_data_intervals = roaddf[roaddf['time_diff'] > pd.Timedelta(hours=hours)]
+    missing_intervals = []
+    for idx, row in missing_data_intervals.iterrows():
+        start_time = roaddf.loc[idx - 1, 'time']
+        end_time = row['time']
+        missing_intervals.append((start_time, end_time))
+    
+    return missing_intervals
+

@@ -12,17 +12,37 @@ from src.models.convtran.optimizers import get_optimizer
 from src.models.convtran.loss import get_loss_module
 from src.models.convtran.utils import load_model
 from Training import SupervisedTrainer, train_runner
+from src.sensor import Sensor, getAllSensors, findNearestSensor
+from src.data import *
 
 logger = logging.getLogger('__main__')
 parser = argparse.ArgumentParser()
+
+
 # -------------------------------------------- Input and Output --------------------------------------------------------
-parser.add_argument('--data_path', default='Dataset/Sensors/', choices={'Dataset/UEA/', 'Dataset/Segmentation/', 'Dataset/Sensors/'},
-                    help='Data path')
+parser.add_argument('--data_path', default='datasets/sensor/서울/노면수위계2024',
+                    help='Road data path')
+parser.add_argument('--sensor_ids', nargs='+', type=str, default=["EUMW00223050014", "EUMW00223050025"], help='List of sensor IDs to use for training')
+parser.add_argument('--rainfall_path', default='datasets/sensor/서울/강수량계',
+                    help='Rainfall data path')
 parser.add_argument('--output_dir', default='Results',
                     help='Root output directory. Must exist. Time-stamped directories will be created inside.')
 parser.add_argument('--Norm', type=bool, default=False, help='Data Normalization')
 parser.add_argument('--val_ratio', type=float, default=0.2, help="Proportion of the train-set to be used as validation")
 parser.add_argument('--print_interval', type=int, default=10, help='Print batch info every this many batches')
+# -------------------------------------------- Data Preprocessing -------------------------------------------------------
+parser.add_argument('--minute_interval', type=int, default=10, help='Interval of the data in minutes')
+parser.add_argument('--rolling_windows', nargs='+', type=int, default=[10, 30, 60, 120, 180], help='List of rolling windows for rainfall')
+parser.add_argument('--input_window_size', type=int, default=12, help='Input window size')
+parser.add_argument('--output_window_size', type=int, default=12, help='Output window size')
+parser.add_argument('--axis', type=int, default=2, 
+                    help="feature 중 지정된 axis의 input_window_size 기간 동안 평균이 threshold 이상인 데이터만 사용"
+                    "example feature columns [time, road, rainfall.rolling(window=rolling_windows[0]), rainfall.rolling(window=rolling_windows[1]), ...]")
+parser.add_argument('--threshold', type=float, default=0.04, help='Threshold for axis')
+parser.add_argument('--concat_future_rain', type=bool, default=True, help='Concat future rain data')
+parser.add_argument('--label_time_axis', nargs='+', type=int, default=[0,1,2,3,4,5], 
+                    help='Time axis to use when creating label data, ex) [0]: 0~10, [1]: 10~20, [2]: 20~30, [0,1]: 0~20, [1,2]: 10~30')
+parser.add_argument('--label_thresholds', nargs='+', type=float, default=[0, 5, 10, 15, 30], help='라벨링 구간')
 # ----------------------------------------------------------------------------------------------------------------------
 # ------------------------------------- Model Parameter and Hyperparameter ---------------------------------------------
 parser.add_argument('--Net_Type', default=['C-T'], choices={'T', 'C-T'}, help="Network Architecture. Convolution (C)"
@@ -52,16 +72,36 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
     config = Setup(args)  # configuration dictionary
+
+    sys.stdout = Tee(os.path.join(config['output_dir'], 'log.txt')) # log file
+
     device = Initialization(config)
     All_Results = ['Datasets', 'ConvTran']  # Use to store the accuracy of ConvTran in e.g "Result/Datasets/UEA"
 
-    for problem in os.listdir(config['data_path']):  # for loop on the all datasets in "data_dir" directory
-        config['data_dir'] = os.path.join(config['data_path'], problem)
-        print('\n', problem)
+    rainfall_sensors = getAllSensors(args.rainfall_path, only_meta=True)
+
+    for sensor_id in args.sensor_ids:  # for loop on the all datasets in "data_dir" directory
+        config['data_dir'] = sensor_id
+        print('\n', sensor_id, '\n')
         # ------------------------------------ Load Data ---------------------------------------------------------------
         logger.info("Loading Data ...")
 
-        data, label = Sensor_Data_Loader(config, concat_future_rain=True)
+        road_sensor = Sensor.load(f'{args.data_path}/{sensor_id}', only_meta=False)
+        rainfall_sensor, min_distance = findNearestSensor(road_sensor, rainfall_sensors)
+        rainfall_sensor = Sensor.load(rainfall_sensor.path, only_meta=False)
+
+        data, label = process_sensor_data(road_sensor, 
+                                          rainfall_sensor, 
+                                          minute_interval=args.minute_interval, 
+                                          rolling_windows=args.rolling_windows,
+                                          input_window_size=args.input_window_size, 
+                                          output_window_size=args.output_window_size, 
+                                          axis=args.axis, 
+                                          threshold=args.threshold,
+                                          concat_future_rain=args.concat_future_rain, 
+                                          label_time_axis=args.label_time_axis,
+                                          label_thresholds=args.label_thresholds)
+        
         train_data, train_label, val_data, val_label = data_split(data, label, val_ratio=0.1)
         
         Data = {'train_data': train_data, 'train_label': train_label, 'val_data': val_data, 'val_label': val_label, 'test_data': val_data, 'test_label': val_label}
@@ -87,7 +127,7 @@ if __name__ == '__main__':
         optim_class = get_optimizer("RAdam")
         config['optimizer'] = optim_class(model.parameters(), lr=config['lr'], weight_decay=0)
         config['loss_module'] = get_loss_module()
-        save_path = os.path.join(config['save_dir'], problem + 'model_{}.pth'.format('last'))
+        save_path = os.path.join(config['save_dir'], sensor_id + 'model_{}.pth'.format('last'))
         tensorboard_writer = SummaryWriter('summary')
         model.to(device)
         # ---------------------------------------------- Training The Model ------------------------------------
@@ -118,9 +158,11 @@ if __name__ == '__main__':
 
         dic_position_results.append(all_metrics['total_accuracy'])
         problem_df = pd.DataFrame(dic_position_results)
-        problem_df.to_csv(os.path.join(config['pred_dir'] + '/' + problem + '.csv'))
+        problem_df.to_csv(os.path.join(config['pred_dir'] + '/' + sensor_id + '.csv'))
 
         All_Results = np.vstack((All_Results, dic_position_results))
 
     All_Results_df = pd.DataFrame(All_Results)
     All_Results_df.to_csv(os.path.join(config['output_dir'], 'ConvTran_Results.csv'))
+
+    sys.stdout.close()

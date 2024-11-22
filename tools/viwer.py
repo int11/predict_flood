@@ -57,7 +57,6 @@ class MainWidget(QMainWindow):
         splitter.addWidget(self.scrollArea)
         splitter.setSizes([1,5000])
 
-
         # Map 탭
         mapWidget = MapWidget(getAllSensors(dir))
         tabWidget.addTab(mapWidget, "Map")

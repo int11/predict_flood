@@ -4,10 +4,11 @@ import json
 import torch
 import numpy as np
 import logging
-import zipfile
-import requests
 from datetime import datetime
 from torch.utils.data import Dataset
+from src.data import TimeSeriesDataset, concat_road_rainfall, find_missing_intervals
+
+
 
 logging.basicConfig(format='%(asctime)s | %(levelname)s : %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,8 +70,7 @@ def Initialization(config):
     return device
 
 
-def Sensor_Data_Loader(config, concat_future_rain=False, thresholds=[0, 5, 10, 15, 30]):
-    path = os.path.join(config['data_dir'], 'result.npy')
+def Sensor_Data_Loader(path, concat_future_rain=False, thresholds=[0, 5, 10, 15, 30]):
     if os.path.exists(path):
         raw_data = np.load(path, allow_pickle=True)
     else:
@@ -118,6 +118,54 @@ def data_split(data, label, val_ratio):
     return data, label, val_data, val_label
 
 
+def process_sensor_data(road_sensor,
+                        rainfall_sensor,
+                        minute_interval=10, 
+                        rolling_windows=[10, 30, 60, 120, 180], 
+                        input_window_size=12, 
+                        output_window_size=12, 
+                        axis=2, 
+                        threshold=0.04, 
+                        concat_future_rain=True, 
+                        label_time_axis=[0],
+                        label_thresholds=[0, 5, 10, 15, 30]):
+    
+    '''
+    feature 은 [time, 노면수위, rolling_windows[0]누적강수량, rolling_windows[1]누적강수량, ...]
+    '''
+    result = concat_road_rainfall(road_sensor, rainfall_sensor, minute_interval=minute_interval, rolling_windows=rolling_windows)
+    missing_intervals = find_missing_intervals(road_sensor, hours=1)
+    dataset = TimeSeriesDataset(result.value, 
+                                input_window_size=input_window_size, 
+                                output_window_size=output_window_size, 
+                                axis=axis, 
+                                threshold=threshold,
+                                ignore_intervals=missing_intervals)
+
+    input = np.array([dataset[i][0] for i in range(len(dataset))])
+    output = np.array([dataset[i][1] for i in range(len(dataset))])
+
+    # Data
+    if concat_future_rain:
+        min10 = output[:, :, 2][:, :, np.newaxis]
+        input = np.concatenate((input, min10), axis=2) # 미래의 강수량 concat
+
+    data = input[:, :, 1:] # time 열 제외
+    data = np.transpose(data, (0, 2, 1)) # 1d conv을 위해 transpose
+    
+    # Label 
+    label = output[:, label_time_axis, 1].max(axis=1)
+    
+    # 라벨링 기준 설정
+    label_result = np.zeros_like(label).astype(np.int32)
+    for i in range(len(label_thresholds)):
+        min = label_thresholds[i]
+        max = int(label_thresholds[i + 1]) if i + 1 < len(label_thresholds) else sys.maxsize
+        label_result = np.where((label > min) & (label <= max), i + 1, label_result)
+
+    return data, label_result
+
+
 class dataset_class(Dataset):
 
     def __init__(self, data, label):
@@ -140,3 +188,26 @@ class dataset_class(Dataset):
 
     def __len__(self):
         return len(self.labels)
+
+
+class Tee:
+    def __init__(self, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        log_file = open(path, 'w')
+        self.file = log_file
+        self.stdout = sys.stdout
+
+    def write(self, obj):
+        self.file.write(obj)
+        self.file.flush()
+        self.stdout.write(obj)
+        self.stdout.flush()
+
+
+    def flush(self):
+        self.file.flush()
+        self.stdout.flush()
+
+    def close(self):
+        sys.stdout = sys.__stdout__  # Restore original stdout
+        self.file.close()
