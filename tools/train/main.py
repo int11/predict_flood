@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..'))
 import argparse
 import logging
 import pandas as pd
@@ -40,9 +42,9 @@ parser.add_argument('--axis', type=int, default=2,
                     "example feature columns [time, road, rainfall.rolling(window=rolling_windows[0]), rainfall.rolling(window=rolling_windows[1]), ...]")
 parser.add_argument('--threshold', type=float, default=0.04, help='Threshold for axis')
 parser.add_argument('--concat_future_rain', type=bool, default=True, help='Concat future rain data')
-parser.add_argument('--label_time_axis', nargs='+', type=int, default=[0,1,2,3,4,5], 
+parser.add_argument('--label_time_axis', nargs='+', type=int, default=[5], 
                     help='Time axis to use when creating label data, ex) [0]: 0~10, [1]: 10~20, [2]: 20~30, [0,1]: 0~20, [1,2]: 10~30')
-parser.add_argument('--label_thresholds', nargs='+', type=float, default=[0, 5, 10, 15, 30], help='라벨링 구간')
+parser.add_argument('--label_thresholds', nargs='+', type=float, default=[0, 12, 35, 60], help='라벨링 구간')
 # ----------------------------------------------------------------------------------------------------------------------
 # ------------------------------------- Model Parameter and Hyperparameter ---------------------------------------------
 parser.add_argument('--Net_Type', default=['C-T'], choices={'T', 'C-T'}, help="Network Architecture. Convolution (C)"
