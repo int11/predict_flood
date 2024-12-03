@@ -42,7 +42,7 @@ parser.add_argument('--axis', type=int, default=2,
                     "example feature columns [time, road, rainfall.rolling(window=rolling_windows[0]), rainfall.rolling(window=rolling_windows[1]), ...]")
 parser.add_argument('--threshold', type=float, default=0.04, help='Threshold for axis')
 parser.add_argument('--concat_future_rain', type=bool, default=True, help='Concat future rain data')
-parser.add_argument('--label_time_axis', nargs='+', type=int, default=[5], 
+parser.add_argument('--label_time_axis', nargs='+', type=int, default=[[0], [1], [2], [3], [4], [5], [0,1], [0,1,2], [0,1,2,3], [0,1,2,3,4], [0,1,2,3,4,5]], 
                     help='Time axis to use when creating label data, ex) [0]: 0~10, [1]: 10~20, [2]: 20~30, [0,1]: 0~20, [1,2]: 10~30')
 parser.add_argument('--label_thresholds', nargs='+', type=float, default=[0, 12, 35, 60], help='라벨링 구간')
 # ----------------------------------------------------------------------------------------------------------------------
@@ -78,93 +78,87 @@ if __name__ == '__main__':
     sys.stdout = Tee(os.path.join(config['output_dir'], 'log.txt')) # log file
 
     device = Initialization(config)
-    All_Results = ['Datasets', 'ConvTran']  # Use to store the accuracy of ConvTran in e.g "Result/Datasets/UEA"
+    
+    result_df = pd.DataFrame(index=args.sensor_ids, columns=[str(i) for i in config['label_time_axis']])
 
     rainfall_sensors = getAllSensors(args.rainfall_path, only_meta=True)
 
-    for sensor_id in args.sensor_ids:  # for loop on the all datasets in "data_dir" directory
-        config['data_dir'] = sensor_id
-        print('\n', sensor_id, '\n')
-        # ------------------------------------ Load Data ---------------------------------------------------------------
-        logger.info("Loading Data ...")
+    for label_time_axis in config['label_time_axis']:
+        for sensor_id in args.sensor_ids:  # for loop on the all datasets in "data_dir" directory
+            config['data_dir'] = sensor_id
+            print('\n', sensor_id, '\n')
+            # ------------------------------------ Load Data ---------------------------------------------------------------
+            logger.info("Loading Data ...")
 
-        road_sensor = Sensor.load(f'{args.data_path}/{sensor_id}', only_meta=False)
-        rainfall_sensor, min_distance = findNearestSensor(road_sensor, rainfall_sensors)
-        rainfall_sensor = Sensor.load(rainfall_sensor.path, only_meta=False)
+            road_sensor = Sensor.load(f'{args.data_path}/{sensor_id}', only_meta=False)
+            rainfall_sensor, min_distance = findNearestSensor(road_sensor, rainfall_sensors)
+            rainfall_sensor = Sensor.load(rainfall_sensor.path, only_meta=False)
 
-        data, label = process_sensor_data(road_sensor, 
-                                          rainfall_sensor, 
-                                          minute_interval=args.minute_interval, 
-                                          rolling_windows=args.rolling_windows,
-                                          input_window_size=args.input_window_size, 
-                                          output_window_size=args.output_window_size, 
-                                          axis=args.axis, 
-                                          threshold=args.threshold,
-                                          concat_future_rain=args.concat_future_rain, 
-                                          label_time_axis=args.label_time_axis,
-                                          label_thresholds=args.label_thresholds)
-        
-        train_data, train_label, val_data, val_label = data_split(data, label, val_ratio=0.1)
-        
-        Data = {'train_data': train_data, 'train_label': train_label, 'val_data': val_data, 'val_label': val_label, 'test_data': val_data, 'test_label': val_label}
+            data, label = process_sensor_data(road_sensor, 
+                                            rainfall_sensor, 
+                                            minute_interval=args.minute_interval, 
+                                            rolling_windows=args.rolling_windows,
+                                            input_window_size=args.input_window_size, 
+                                            output_window_size=args.output_window_size, 
+                                            axis=args.axis, 
+                                            threshold=args.threshold,
+                                            concat_future_rain=args.concat_future_rain, 
+                                            label_time_axis=label_time_axis,
+                                            label_thresholds=args.label_thresholds)
+            
+            train_data, train_label, val_data, val_label = data_split(data, label, val_ratio=0.1)
+            
+            Data = {'train_data': train_data, 'train_label': train_label, 'val_data': val_data, 'val_label': val_label, 'test_data': val_data, 'test_label': val_label}
 
-        train_dataset = dataset_class(Data['train_data'], Data['train_label'])
-        val_dataset = dataset_class(Data['val_data'], Data['val_label'])
-        test_dataset = dataset_class(Data['test_data'], Data['test_label'])
+            train_dataset = dataset_class(Data['train_data'], Data['train_label'])
+            val_dataset = dataset_class(Data['val_data'], Data['val_label'])
+            test_dataset = dataset_class(Data['test_data'], Data['test_label'])
 
-        test_loader = DataLoader(dataset=test_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
-        val_loader = DataLoader(dataset=val_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
-        # --------------------------------------------------------------------------------------------------------------
-        # -------------------------------------------- Build Model -----------------------------------------------------
-        dic_position_results = [config['data_dir'].split('/')[-1]]
+            train_loader = DataLoader(dataset=train_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
+            val_loader = DataLoader(dataset=val_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
+            test_loader = DataLoader(dataset=test_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
+            # --------------------------------------------------------------------------------------------------------------
+            # -------------------------------------------- Build Model -----------------------------------------------------
+            logger.info("Creating model ...")
+            config['Data_shape'] = Data['train_data'].shape
+            config['num_labels'] = int(max(Data['train_label']))+1
+            model = model_factory(config)
+            logger.info("Model:\n{}".format(model))
+            logger.info("Total number of parameters: {}".format(count_parameters(model)))
+            # -------------------------------------------- Model Initialization ------------------------------------
+            optim_class = get_optimizer("RAdam")
+            config['optimizer'] = optim_class(model.parameters(), lr=config['lr'], weight_decay=0)
+            config['loss_module'] = get_loss_module()
+            save_path = os.path.join(config['save_dir'], sensor_id + 'model_{}.pth'.format('last'))
+            tensorboard_writer = SummaryWriter('summary')
+            model.to(device)
+            # ---------------------------------------------- Training The Model ------------------------------------
+            logger.info('Starting training...')
+            trainer = SupervisedTrainer(model, train_loader, device, config['loss_module'], config['optimizer'], l2_reg=0,
+                                        print_interval=config['print_interval'], console=config['console'], print_conf_mat=False)
+            val_evaluator = SupervisedTrainer(model, val_loader, device, config['loss_module'],
+                                            print_interval=config['print_interval'], console=config['console'],
+                                            print_conf_mat=False)
 
-        logger.info("Creating model ...")
-        config['Data_shape'] = Data['train_data'].shape
-        config['num_labels'] = int(max(Data['train_label']))+1
-        model = model_factory(config)
-        logger.info("Model:\n{}".format(model))
-        logger.info("Total number of parameters: {}".format(count_parameters(model)))
-        # -------------------------------------------- Model Initialization ------------------------------------
-        optim_class = get_optimizer("RAdam")
-        config['optimizer'] = optim_class(model.parameters(), lr=config['lr'], weight_decay=0)
-        config['loss_module'] = get_loss_module()
-        save_path = os.path.join(config['save_dir'], sensor_id + 'model_{}.pth'.format('last'))
-        tensorboard_writer = SummaryWriter('summary')
-        model.to(device)
-        # ---------------------------------------------- Training The Model ------------------------------------
-        logger.info('Starting training...')
-        trainer = SupervisedTrainer(model, train_loader, device, config['loss_module'], config['optimizer'], l2_reg=0,
-                                    print_interval=config['print_interval'], console=config['console'], print_conf_mat=False)
-        val_evaluator = SupervisedTrainer(model, val_loader, device, config['loss_module'],
-                                        print_interval=config['print_interval'], console=config['console'],
-                                        print_conf_mat=False)
+            train_runner(config, model, trainer, val_evaluator, save_path)
+            best_model, optimizer, start_epoch = load_model(model, save_path, config['optimizer'])
+            best_model.to(device)
 
-        train_runner(config, model, trainer, val_evaluator, save_path)
-        best_model, optimizer, start_epoch = load_model(model, save_path, config['optimizer'])
-        best_model.to(device)
+            best_test_evaluator = SupervisedTrainer(best_model, test_loader, device, config['loss_module'],
+                                                    print_interval=config['print_interval'], console=config['console'],
+                                                    print_conf_mat=True)
+            best_aggr_metrics_test, all_metrics = best_test_evaluator.evaluate(keep_all=True)
+            print_str = 'Best Model Test Summary: '
+            for k, v in best_aggr_metrics_test.items():
+                print_str += '{}: {} | '.format(k, v)
+            print(print_str)
 
-        best_test_evaluator = SupervisedTrainer(best_model, test_loader, device, config['loss_module'],
-                                                print_interval=config['print_interval'], console=config['console'],
-                                                print_conf_mat=True)
-        best_aggr_metrics_test, all_metrics = best_test_evaluator.evaluate(keep_all=True)
-        print_str = 'Best Model Test Summary: '
-        for k, v in best_aggr_metrics_test.items():
-            print_str += '{}: {} | '.format(k, v)
-        print(print_str)
+            print("train_label value_counts")
+            print(pd.DataFrame(train_label).value_counts())
+            print("val_labe value_countsl")
+            print(pd.DataFrame(val_label).value_counts())
 
-        print("train_label")
-        print(pd.DataFrame(train_label).value_counts())
-        print("val_label")
-        print(pd.DataFrame(val_label).value_counts())
+            result_df.at[sensor_id, str(label_time_axis)] = [all_metrics['total_accuracy'], all_metrics['ConfMatrix']]
 
-        dic_position_results.append(all_metrics['total_accuracy'])
-        problem_df = pd.DataFrame(dic_position_results)
-        problem_df.to_csv(os.path.join(config['pred_dir'] + '/' + sensor_id + '.csv'))
-
-        All_Results = np.vstack((All_Results, dic_position_results))
-
-    All_Results_df = pd.DataFrame(All_Results)
-    All_Results_df.to_csv(os.path.join(config['output_dir'], 'ConvTran_Results.csv'))
-
+    result_df.to_csv(os.path.join(config['output_dir'], 'ConvTran_Results.csv'))
     sys.stdout.close()
