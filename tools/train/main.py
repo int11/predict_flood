@@ -24,7 +24,14 @@ parser = argparse.ArgumentParser()
 # -------------------------------------------- Input and Output --------------------------------------------------------
 parser.add_argument('--data_path', default='datasets/sensor/서울/노면수위계2024',
                     help='Road data path')
-parser.add_argument('--sensor_ids', nargs='+', type=str, default=["EUMW00223050014", "EUMW00223050025"], help='List of sensor IDs to use for training')
+parser.add_argument('--sensor_ids', nargs='+', type=str, default=["EUMW00223060013", 
+                                                                  "EUMW00223050014", 
+                                                                  "EUMW00223050025", 
+                                                                  "EUMW00223120045", 
+                                                                  "EUMW00223050004", 
+                                                                  "EUMW00223050015", 
+                                                                  "EUMW00223060036", 
+                                                                  "EUMW00223060030",], help='List of sensor IDs to use for training')
 parser.add_argument('--rainfall_path', default='datasets/sensor/서울/강수량계',
                     help='Rainfall data path')
 parser.add_argument('--output_dir', default='Results',
@@ -37,12 +44,12 @@ parser.add_argument('--minute_interval', type=int, default=10, help='Interval of
 parser.add_argument('--rolling_windows', nargs='+', type=int, default=[10, 30, 60, 120, 180], help='List of rolling windows for rainfall')
 parser.add_argument('--input_window_size', type=int, default=12, help='Input window size')
 parser.add_argument('--output_window_size', type=int, default=12, help='Output window size')
-parser.add_argument('--axis', type=int, default=2, 
+parser.add_argument('--threshold_feature_axis', type=int, default=2, 
                     help="feature 중 지정된 axis의 input_window_size 기간 동안 평균이 threshold 이상인 데이터만 사용"
                     "example feature columns [time, road, rainfall.rolling(window=rolling_windows[0]), rainfall.rolling(window=rolling_windows[1]), ...]")
 parser.add_argument('--threshold', type=float, default=0.04, help='Threshold for axis')
-parser.add_argument('--concat_future_rain', type=bool, default=True, help='Concat future rain data')
-parser.add_argument('--label_time_axis', nargs='+', type=int, default=[[0], [1], [2], [3], [4], [5], [0,1], [0,1,2], [0,1,2,3], [0,1,2,3,4], [0,1,2,3,4,5]], 
+parser.add_argument('--concat_output_feature_axis', nargs='+', type=int, default=2, help='Receive output axis to concatenate.') 
+parser.add_argument('--label_output_time_axis', nargs='+', type=int, default=[[0], [1], [2], [3], [4], [5], [0,1], [0,1,2], [0,1,2,3], [0,1,2,3,4], [0,1,2,3,4,5]], 
                     help='Time axis to use when creating label data, ex) [0]: 0~10, [1]: 10~20, [2]: 20~30, [0,1]: 0~20, [1,2]: 10~30')
 parser.add_argument('--label_thresholds', nargs='+', type=float, default=[0, 12, 35, 60], help='라벨링 구간')
 # ----------------------------------------------------------------------------------------------------------------------
@@ -58,8 +65,8 @@ parser.add_argument('--Fix_pos_encode', choices={'tAPE', 'Learn', 'None'}, defau
 parser.add_argument('--Rel_pos_encode', choices={'eRPE', 'Vector', 'None'}, default='eRPE',
                     help='Relative Position Embedding')
 # Training Parameters/ Hyper-Parameters ----------------
-parser.add_argument('--epochs', type=int, default=100, help='Number of training epochs')
-parser.add_argument('--batch_size', type=int, default=16, help='Training batch size')
+parser.add_argument('--epochs', type=int, default=500, help='Number of training epochs')
+parser.add_argument('--batch_size', type=int, default=2048, help='Training batch size')
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 parser.add_argument('--dropout', type=float, default=0.01, help='Droupout regularization ratio')
 parser.add_argument('--val_interval', type=int, default=2, help='Evaluate on validation every XX epochs. Must be >= 1')
@@ -74,16 +81,24 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
     config = Setup(args)  # configuration dictionary
-
-    sys.stdout = Tee(os.path.join(config['output_dir'], 'log.txt')) # log file
-
+    sys.stdout = Tee(os.path.join(config['output_dir'], 'log.txt')) # logging to file
     device = Initialization(config)
     
-    result_df = pd.DataFrame(index=args.sensor_ids, columns=[str(i) for i in config['label_time_axis']])
-
     rainfall_sensors = getAllSensors(args.rainfall_path, only_meta=True)
 
-    for label_time_axis in config['label_time_axis']:
+    # label_output_time_axes multiple input handling
+    label_output_time_axes = config['label_output_time_axis']
+    if isinstance(label_output_time_axes, list) and all(isinstance(i, int) for i in label_output_time_axes):
+        label_output_time_axes = [label_output_time_axes]
+    elif isinstance(label_output_time_axes, int):
+        label_output_time_axes = [[label_output_time_axes]]
+    # concat_output_feature_axis multiple input handling
+    if isinstance(config['concat_output_feature_axis'], int):
+        config['concat_output_feature_axis'] = [config['concat_output_feature_axis']]
+
+    result_df = pd.DataFrame(index=args.sensor_ids, columns=[str(i) for i in label_output_time_axes])
+
+    for label_output_time_axis in config['label_output_time_axis']:
         for sensor_id in args.sensor_ids:  # for loop on the all datasets in "data_dir" directory
             config['data_dir'] = sensor_id
             print('\n', sensor_id, '\n')
@@ -100,10 +115,10 @@ if __name__ == '__main__':
                                             rolling_windows=args.rolling_windows,
                                             input_window_size=args.input_window_size, 
                                             output_window_size=args.output_window_size, 
-                                            axis=args.axis, 
+                                            threshold_feature_axis=args.threshold_feature_axis, 
                                             threshold=args.threshold,
-                                            concat_future_rain=args.concat_future_rain, 
-                                            label_time_axis=label_time_axis,
+                                            concat_output_feature_axis=args.concat_output_feature_axis, 
+                                            label_output_time_axis=label_output_time_axis,
                                             label_thresholds=args.label_thresholds)
             
             train_data, train_label, val_data, val_label = data_split(data, label, val_ratio=0.1)
@@ -158,7 +173,6 @@ if __name__ == '__main__':
             print("val_labe value_countsl")
             print(pd.DataFrame(val_label).value_counts())
 
-            result_df.at[sensor_id, str(label_time_axis)] = [all_metrics['total_accuracy'], all_metrics['ConfMatrix']]
-
-    result_df.to_csv(os.path.join(config['output_dir'], 'ConvTran_Results.csv'))
+            result_df.at[sensor_id, str(label_output_time_axis)] = [all_metrics['total_accuracy'], all_metrics['ConfMatrix']]
+            result_df.to_csv(os.path.join(config['output_dir'], 'ConvTran_Results.csv'))
     sys.stdout.close()

@@ -124,10 +124,10 @@ def process_sensor_data(road_sensor,
                         rolling_windows=[10, 30, 60, 120, 180], 
                         input_window_size=12, 
                         output_window_size=12, 
-                        axis=2, 
+                        threshold_feature_axis=2, 
                         threshold=0.04, 
-                        concat_future_rain=True, 
-                        label_time_axis=[0],
+                        concat_output_feature_axis=[2], 
+                        label_output_time_axis=[0],
                         label_thresholds=[0, 5, 10, 15, 30]):
     
     '''
@@ -138,7 +138,7 @@ def process_sensor_data(road_sensor,
     dataset = TimeSeriesDataset(result.value, 
                                 input_window_size=input_window_size, 
                                 output_window_size=output_window_size, 
-                                axis=axis, 
+                                threshold_feature_axis=threshold_feature_axis, 
                                 threshold=threshold,
                                 ignore_intervals=missing_intervals)
 
@@ -146,15 +146,15 @@ def process_sensor_data(road_sensor,
     output = np.array([dataset[i][1] for i in range(len(dataset))])
 
     # Data
-    if concat_future_rain:
-        min10 = output[:, :, 2][:, :, np.newaxis]
+    if concat_output_feature_axis != None:
+        min10 = output[:, :, concat_output_feature_axis]
         input = np.concatenate((input, min10), axis=2) # 미래의 강수량 concat
 
     data = input[:, :, 1:] # time 열 제외
     data = np.transpose(data, (0, 2, 1)) # 1d conv을 위해 transpose
     
     # Label 
-    label = output[:, label_time_axis, 1].max(axis=1)
+    label = output[:, label_output_time_axis, 1].max(axis=1)
     
     # 라벨링 기준 설정
     label_result = np.zeros_like(label).astype(np.int32)

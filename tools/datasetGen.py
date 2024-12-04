@@ -60,7 +60,7 @@ def main(minute_interval, rolling_windows, input_window_size, output_window_size
         dataset = TimeSeriesDataset(result.value, 
                                     input_window_size=input_window_size, 
                                     output_window_size=output_window_size, 
-                                    axis=axis, 
+                                    threshold_feature_axis=axis, 
                                     threshold=threshold,
                                     ignore_intervals=missing_intervals)
         

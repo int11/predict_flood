@@ -7,7 +7,7 @@ class TimeSeriesDataset(Dataset):
                  df, 
                  input_window_size, 
                  output_window_size, 
-                 axis, threshold, 
+                 threshold_feature_axis, threshold, 
                  ignore_intervals: list[tuple[pd.Timestamp, pd.Timestamp]]=None):
         """
         Args:
@@ -31,7 +31,7 @@ class TimeSeriesDataset(Dataset):
 
         self.valid_indices = [
             i for i in range(len(self.data) - self.total_window_size + 1)
-            if self.data[i:i+self.input_window_size, axis].mean() > threshold
+            if self.data[i:i+self.input_window_size, threshold_feature_axis].mean() > threshold
             and not self.is_in_ignore_intervals(
                 df.iloc[i]['time'],
                 df.iloc[i + self.total_window_size - 1]['time']
