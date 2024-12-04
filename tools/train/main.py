@@ -13,6 +13,7 @@ from src.models.convtran.model import model_factory, count_parameters
 from src.models.convtran.optimizers import get_optimizer
 from src.models.convtran.loss import get_loss_module
 from src.models.convtran.utils import load_model
+from src.models.convtran.analysis import str_confusion_matrix
 from Training import SupervisedTrainer, train_runner
 from src.sensor import Sensor, getAllSensors, findNearestSensor
 from src.data import *
@@ -48,7 +49,7 @@ parser.add_argument('--threshold_feature_axis', type=int, default=2,
                     help="feature 중 지정된 axis의 input_window_size 기간 동안 평균이 threshold 이상인 데이터만 사용"
                     "example feature columns [time, road, rainfall.rolling(window=rolling_windows[0]), rainfall.rolling(window=rolling_windows[1]), ...]")
 parser.add_argument('--threshold', type=float, default=0.04, help='Threshold for axis')
-parser.add_argument('--concat_output_feature_axis', nargs='+', type=int, default=2, help='Receive output axis to concatenate.') 
+parser.add_argument('--concat_output_feature_axis', nargs='+', type=int, default=[2,3,4,5,6], help='Receive output axis to concatenate.') 
 parser.add_argument('--label_output_time_axis', nargs='+', type=int, default=[[0], [1], [2], [3], [4], [5], [0,1], [0,1,2], [0,1,2,3], [0,1,2,3,4], [0,1,2,3,4,5]], 
                     help='Time axis to use when creating label data, ex) [0]: 0~10, [1]: 10~20, [2]: 20~30, [0,1]: 0~20, [1,2]: 10~30')
 parser.add_argument('--label_thresholds', nargs='+', type=float, default=[0, 12, 35, 60], help='라벨링 구간')
@@ -144,7 +145,7 @@ if __name__ == '__main__':
             optim_class = get_optimizer("RAdam")
             config['optimizer'] = optim_class(model.parameters(), lr=config['lr'], weight_decay=0)
             config['loss_module'] = get_loss_module()
-            save_path = os.path.join(config['save_dir'], sensor_id + 'model_{}.pth'.format('last'))
+            save_path = os.path.join(config['save_dir'], f"{sensor_id}_model_last.pth")
             tensorboard_writer = SummaryWriter('summary')
             model.to(device)
             # ---------------------------------------------- Training The Model ------------------------------------
@@ -168,11 +169,14 @@ if __name__ == '__main__':
                 print_str += '{}: {} | '.format(k, v)
             print(print_str)
 
-            print("train_label value_counts")
-            print(pd.DataFrame(train_label).value_counts())
-            print("val_labe value_countsl")
-            print(pd.DataFrame(val_label).value_counts())
+            value_counts = pd.DataFrame(train_label).value_counts().to_dict()
+            print("train label value counts" + str(value_counts))
 
-            result_df.at[sensor_id, str(label_output_time_axis)] = [all_metrics['total_accuracy'], all_metrics['ConfMatrix']]
+            result_df.at[sensor_id, str(label_output_time_axis)] = \
+                str_confusion_matrix(all_metrics['ConfMatrix'], best_test_evaluator.analyzer.existing_class_names) + "\n\n" + \
+                best_test_evaluator.analyzer.generate_classification_report() + "\n" + \
+                "loss : " + str(best_aggr_metrics_test['loss']) + "\n" + \
+                "accuracy : " + str(all_metrics['total_accuracy']) + "\n" + \
+                "train_label value_counts : " + str(value_counts)
             result_df.to_csv(os.path.join(config['output_dir'], 'ConvTran_Results.csv'))
     sys.stdout.close()

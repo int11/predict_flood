@@ -189,21 +189,20 @@ def plot_confusion_matrix(ConfMat, label_strings=None, title='Confusion matrix',
     plt.xlabel('Predicted label')
 
 '''
-def print_confusion_matrix(ConfMat, label_strings=None, title='Confusion matrix'):
+def str_confusion_matrix(ConfMat, label_strings=None, title='Confusion matrix'):
     """Print confusion matrix as text to terminal"""
 
     if label_strings is None:
         label_strings = ConfMat.shape[0] * ['']
 
-    print(title)
-    print(len(title) * '-')
     # Make printable matrix:
     print_mat = []
     for i, row in enumerate(ConfMat):
         print_mat.append([label_strings[i]] + list(row))
-    print(tabulate(print_mat, headers=['True\Pred'] + label_strings, tablefmt='orgtbl'))
 
-
+    return title + '\n' + \
+           len(title) * '-' + '\n' + \
+           tabulate(print_mat, headers=['True\Pred'] + label_strings, tablefmt='orgtbl')
 
 class Analyzer(object):
 
@@ -432,7 +431,7 @@ class Analyzer(object):
         ConfMatrix = metrics.confusion_matrix(y_true, y_pred)
 
         if self.print_conf_mat:
-            print_confusion_matrix(ConfMatrix, label_strings=self.existing_class_names, title='Confusion matrix')
+            print(str_confusion_matrix(ConfMatrix, label_strings=self.existing_class_names, title='Confusion matrix'))
             print('\n')
         if self.plot:
             plt.figure()
@@ -447,8 +446,8 @@ class Analyzer(object):
 
 
         if self.print_conf_mat:
-            print_confusion_matrix(self.ConfMatrix_normalized_row, label_strings=self.existing_class_names,
-                                   title='Confusion matrix normalized by row')
+            print(str_confusion_matrix(self.ConfMatrix_normalized_row, label_strings=self.existing_class_names,
+                                   title='Confusion matrix normalized by row'))
             print('\n')
         if self.plot:
             plt.figure()
