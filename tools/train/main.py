@@ -49,7 +49,7 @@ parser.add_argument('--threshold_feature_axis', type=int, default=2,
                     help="feature 중 지정된 axis의 input_window_size 기간 동안 평균이 threshold 이상인 데이터만 사용"
                     "example feature columns [time, road, rainfall.rolling(window=rolling_windows[0]), rainfall.rolling(window=rolling_windows[1]), ...]")
 parser.add_argument('--threshold', type=float, default=0.04, help='Threshold for axis')
-parser.add_argument('--concat_output_feature_axis', nargs='+', type=int, default=[2,3,4,5,6], help='Receive output axis to concatenate.') 
+parser.add_argument('--concat_output_feature_axis', nargs='+', type=int, default=None, help='Receive output axis to concatenate.') 
 parser.add_argument('--label_output_time_axis', nargs='+', type=int, default=[[0], [1], [2], [3], [4], [5], [0,1], [0,1,2], [0,1,2,3], [0,1,2,3,4], [0,1,2,3,4,5]], 
                     help='Time axis to use when creating label data, ex) [0]: 0~10, [1]: 10~20, [2]: 20~30, [0,1]: 0~20, [1,2]: 10~30')
 parser.add_argument('--label_thresholds', nargs='+', type=float, default=[0, 12, 35, 60], help='라벨링 구간')
@@ -150,19 +150,20 @@ if __name__ == '__main__':
             model.to(device)
             # ---------------------------------------------- Training The Model ------------------------------------
             logger.info('Starting training...')
-            trainer = SupervisedTrainer(model, train_loader, device, config['loss_module'], config['optimizer'], l2_reg=0,
-                                        print_interval=config['print_interval'], console=config['console'], print_conf_mat=False)
-            val_evaluator = SupervisedTrainer(model, val_loader, device, config['loss_module'],
-                                            print_interval=config['print_interval'], console=config['console'],
-                                            print_conf_mat=False)
+            trainer = SupervisedTrainer(
+                model, train_loader, device, config['loss_module'], config['optimizer'], l2_reg=0,
+                print_interval=config['print_interval'], console=config['console'], print_conf_mat=False)
+            val_evaluator = SupervisedTrainer(
+                model, val_loader, device, config['loss_module'],
+                print_interval=config['print_interval'], console=config['console'], print_conf_mat=False)
 
             train_runner(config, model, trainer, val_evaluator, save_path)
             best_model, optimizer, start_epoch = load_model(model, save_path, config['optimizer'])
             best_model.to(device)
 
-            best_test_evaluator = SupervisedTrainer(best_model, test_loader, device, config['loss_module'],
-                                                    print_interval=config['print_interval'], console=config['console'],
-                                                    print_conf_mat=True)
+            best_test_evaluator = SupervisedTrainer(
+                best_model, test_loader, device, config['loss_module'],
+                print_interval=config['print_interval'], console=config['console'], print_conf_mat=True)
             best_aggr_metrics_test, all_metrics = best_test_evaluator.evaluate(keep_all=True)
             print_str = 'Best Model Test Summary: '
             for k, v in best_aggr_metrics_test.items():
