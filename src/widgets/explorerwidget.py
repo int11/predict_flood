@@ -6,7 +6,6 @@ from src import Sensor
 
 class ExplorerWidget(QWidget):
     addButtonClicked = pyqtSignal(QTreeWidgetItem)  # addButton 클릭 시그널
-    addAllClicked = pyqtSignal()  # addall 클릭 시그널
     plotOneGraphClicked = pyqtSignal()  # plot_one_graph 클릭 시그널
     plotEachClicked = pyqtSignal()  # plot_each 클릭 시그널
     
@@ -33,12 +32,6 @@ class ExplorerWidget(QWidget):
         # addall, plot_one_graph, plot_each 버튼 생성
         hbox = QHBoxLayout()
         self.layout.addLayout(hbox)
-
-        addall = QPushButton('+', self)
-        addall.setStyleSheet("background-color: red;")
-        addall.setFixedSize(20, 20)
-        addall.clicked.connect(self.emitAddAllClicked)
-        hbox.addWidget(addall)
 
         plot_one_graph = QPushButton('checked plot draw one graph', self)
         plot_one_graph.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -97,9 +90,6 @@ class ExplorerWidget(QWidget):
 
 
             self.treeWidget.setItemWidget(parentItem, 1, containerWidget)
-
-    def emitAddAllClicked(self):
-        self.addAllClicked.emit()
 
     def emitPlotOneGraphClicked(self):
         self.plotOneGraphClicked.emit()
